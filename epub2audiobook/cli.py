@@ -10,7 +10,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-from epub2audiobook.config import DEFAULT_OUTPUT_DIR, DEFAULT_VOICE, VERSION
+from epub2audiobook.config import DEFAULT_ENGINE, DEFAULT_OUTPUT_DIR, VERSION
 from epub2audiobook.utils import (
     DependencyError,
     DiskSpaceError,
@@ -64,6 +64,8 @@ def main() -> int:
                 f"\n"
                 f"Options:\n"
                 f"  --output, -o  Output path for the M4B file\n"
+                f"  --engine      TTS engine: kokoro (default) or piper\n"
+                f"  --voice       Voice name (default depends on engine)\n"
                 f"  --verbose, -v Enable debug logging\n"
                 f"  --version     Print version and exit",
                 file=sys.stderr,
@@ -88,7 +90,7 @@ def main() -> int:
         from epub2audiobook.assembler import AssemblyError, assemble_audiobook
         from epub2audiobook.parser import BookMetadata, ParsingError, parse_epub
         from epub2audiobook.preprocessor import preprocess_text
-        from epub2audiobook.tts_engine import PiperTTSEngine, TTSError
+        from epub2audiobook.tts_engine import TTSError, create_tts_engine
     except ImportError as e:
         logger.error("Missing dependency: %s", e)
         return 2
@@ -120,7 +122,7 @@ def main() -> int:
 
     # Stage 5: TTS generation
     try:
-        tts = PiperTTSEngine(voice=DEFAULT_VOICE)
+        tts = create_tts_engine(args.engine, args.voice)
     except DependencyError as e:
         logger.error("%s", e)
         return 2
@@ -168,6 +170,7 @@ def main() -> int:
     try:
         assemble_audiobook(
             chapter_wav_paths, metadata, chapter_titles, output_path,
+            tts.get_voice_name(),
         )
     except (AssemblyError, DependencyError) as e:
         logger.error("Assembly failed: %s", e)
@@ -184,11 +187,8 @@ def main() -> int:
 
     # Calculate total duration from the M4B
     try:
-        from pydub import AudioSegment
-        audio = AudioSegment.from_file(str(output_path), format="m4b")
-        total_duration = len(audio) / 1000.0
-        del audio
-        duration_str = format_duration(total_duration)
+        from mutagen.mp4 import MP4
+        duration_str = format_duration(MP4(str(output_path)).info.length)
     except Exception:
         duration_str = "unknown"
 
@@ -214,7 +214,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         argv: Argument list. If None, uses sys.argv[1:].
 
     Returns:
-        Namespace with epub_path, output, verbose, version.
+        Namespace with epub_path, output, engine, voice, verbose, version.
     """
     parser = argparse.ArgumentParser(
         prog="epub2audiobook",
@@ -232,6 +232,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=Path,
         default=None,
         help=f"Output path for the M4B file (default: {DEFAULT_OUTPUT_DIR}/{{title}}.m4b)",
+    )
+    parser.add_argument(
+        "--engine",
+        choices=["kokoro", "piper"],
+        default=DEFAULT_ENGINE,
+        help=f"TTS engine (default: {DEFAULT_ENGINE}). "
+             "Kokoro sounds more natural; Piper is about 8x faster.",
+    )
+    parser.add_argument(
+        "--voice",
+        default=None,
+        help="Voice name, e.g. af_heart or bm_george for Kokoro, "
+             "en_US-lessac-medium for Piper (default: the engine's default).",
     )
     parser.add_argument(
         "--verbose", "-v",
@@ -326,9 +339,15 @@ def open_file_dialog() -> Path | None:
 
 
 def _resolve_output_path(output_arg: Path | None, title: str) -> Path:
-    """Determine the output path for the M4B file."""
-    if output_arg is not None:
-        return output_arg.expanduser().resolve()
+    """Determine the output path for the M4B file.
 
+    A directory argument gets the default '{title}.m4b' filename.
+    """
     filename = sanitize_filename(title) + ".m4b"
+    if output_arg is not None:
+        output_path = output_arg.expanduser().resolve()
+        if output_path.is_dir():
+            return output_path / filename
+        return output_path
+
     return DEFAULT_OUTPUT_DIR / filename

@@ -1,21 +1,46 @@
-"""TTS engine abstraction and Piper TTS implementation.
+"""TTS engine abstraction with Kokoro and Piper implementations.
 
-Provides an abstract TTSEngine base class and a concrete PiperTTSEngine
-that uses the piper-tts Python library for speech synthesis.
+Provides an abstract TTSEngine base class that synthesizes text paragraph
+by paragraph with a pause between paragraphs, and two concrete engines:
+KokoroTTSEngine (default, more natural) and PiperTTSEngine (faster).
 """
 
-import io
 import logging
 import re
-import struct
+import urllib.request
 import wave
 from abc import ABC, abstractmethod
+from collections.abc import Iterator
 from pathlib import Path
 
-from epub2audiobook.config import DEFAULT_SAMPLE_RATE, DEFAULT_VOICE, MAX_TTS_CHUNK_CHARS
+import numpy as np
+
+from epub2audiobook.config import (
+    DEFAULT_ENGINE,
+    DEFAULT_KOKORO_VOICE,
+    DEFAULT_PIPER_VOICE,
+    KOKORO_MODEL_DIR,
+    KOKORO_MODEL_FILE,
+    KOKORO_MODEL_URL,
+    KOKORO_VOICES_FILE,
+    PARAGRAPH_PAUSE_MS,
+    PIPER_MODEL_DIR,
+    SENTENCE_PAUSE_MS,
+)
 from epub2audiobook.utils import DependencyError
 
 logger = logging.getLogger(__name__)
+
+# Kokoro voice-name prefix -> espeak language code
+KOKORO_LANGUAGES: dict[str, str] = {
+    "a": "en-us",
+    "b": "en-gb",
+    "e": "es",
+    "f": "fr-fr",
+    "h": "hi",
+    "i": "it",
+    "p": "pt-br",
+}
 
 
 class TTSError(Exception):
@@ -23,11 +48,28 @@ class TTSError(Exception):
 
 
 class TTSEngine(ABC):
-    """Abstract base class for text-to-speech engines."""
+    """Abstract base class for text-to-speech engines.
+
+    Subclasses set `sample_rate` and implement `_synthesize_paragraph`.
+    Every WAV an engine writes uses that one sample rate, which FFmpeg's
+    concat demuxer requires.
+    """
+
+    sample_rate: int
 
     @abstractmethod
+    def _synthesize_paragraph(self, text: str) -> Iterator[bytes]:
+        """Yield 16-bit mono PCM frames for one paragraph."""
+
+    @abstractmethod
+    def get_voice_name(self) -> str:
+        """Return the human-readable name of the current voice."""
+
     def generate(self, text: str, output_path: Path) -> Path:
         """Generate audio from text and save to a WAV file.
+
+        Synthesizes paragraph by paragraph, streaming to disk, with a
+        pause after each paragraph.
 
         Args:
             text: The text to synthesize.
@@ -39,20 +81,131 @@ class TTSEngine(ABC):
         Raises:
             TTSError: If audio generation fails.
         """
+        paragraphs = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
+        if not paragraphs:
+            return self.generate_silence(output_path)
 
-    @abstractmethod
+        pause = self._silence(PARAGRAPH_PAUSE_MS)
+        try:
+            with wave.open(str(output_path), "wb") as wav_file:
+                wav_file.setnchannels(1)
+                wav_file.setsampwidth(2)  # 16-bit
+                wav_file.setframerate(self.sample_rate)
+                for paragraph in paragraphs:
+                    for frames in self._synthesize_paragraph(paragraph):
+                        wav_file.writeframes(frames)
+                    wav_file.writeframes(pause)
+        except TTSError:
+            raise
+        except Exception as e:
+            raise TTSError(
+                f"TTS generation failed: {e} "
+                f"(text starts with: '{text[:100]}...')"
+            ) from e
+
+        return output_path
+
+    def generate_silence(self, output_path: Path, duration_ms: int = 1000) -> Path:
+        """Generate a silent WAV file at the engine's sample rate.
+
+        Args:
+            output_path: Path for the output WAV file.
+            duration_ms: Duration of silence in milliseconds.
+
+        Returns:
+            The output_path.
+        """
+        with wave.open(str(output_path), "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)  # 16-bit
+            wf.setframerate(self.sample_rate)
+            wf.writeframes(self._silence(duration_ms))
+
+        return output_path
+
+    def _silence(self, duration_ms: int) -> bytes:
+        """Return 16-bit mono silence of the given duration."""
+        return bytes(2 * int(self.sample_rate * duration_ms / 1000))
+
+
+class KokoroTTSEngine(TTSEngine):
+    """Kokoro TTS engine implementation (via kokoro-onnx).
+
+    Downloads the model and voice pack on first use.
+    """
+
+    def __init__(self, voice: str = DEFAULT_KOKORO_VOICE) -> None:
+        """Initialize the Kokoro TTS engine.
+
+        Args:
+            voice: Kokoro voice name (e.g., 'af_heart', 'bm_george').
+
+        Raises:
+            DependencyError: If kokoro-onnx is not installed.
+            TTSError: If the model cannot be loaded or the voice is unknown.
+        """
+        self._voice_name = voice
+
+        try:
+            from kokoro_onnx import Kokoro
+        except ImportError as e:
+            raise DependencyError(
+                "kokoro-onnx is required but not installed. "
+                "Install with: pip install kokoro-onnx"
+            ) from e
+
+        self._lang = KOKORO_LANGUAGES.get(voice[:1])
+        if self._lang is None:
+            raise TTSError(
+                f"Unsupported Kokoro voice '{voice}'. Supported prefixes: "
+                f"{', '.join(sorted(KOKORO_LANGUAGES))}"
+            )
+
+        try:
+            KOKORO_MODEL_DIR.mkdir(parents=True, exist_ok=True)
+            for filename in (KOKORO_MODEL_FILE, KOKORO_VOICES_FILE):
+                _download_if_missing(KOKORO_MODEL_URL + filename,
+                                     KOKORO_MODEL_DIR / filename)
+            self._kokoro = Kokoro(
+                str(KOKORO_MODEL_DIR / KOKORO_MODEL_FILE),
+                str(KOKORO_MODEL_DIR / KOKORO_VOICES_FILE),
+            )
+        except Exception as e:
+            raise TTSError(f"Failed to load Kokoro model: {e}") from e
+
+        if voice not in self._kokoro.get_voices():
+            raise TTSError(
+                f"Unknown Kokoro voice '{voice}'. Available: "
+                f"{', '.join(sorted(self._kokoro.get_voices()))}"
+            )
+
+        self.sample_rate = 24_000
+        logger.info("Kokoro TTS initialized with voice: %s", voice)
+
     def get_voice_name(self) -> str:
-        """Return the human-readable name of the current voice."""
+        """Return e.g. 'Kokoro (af_heart)'."""
+        return f"Kokoro ({self._voice_name})"
+
+    def _synthesize_paragraph(self, text: str) -> Iterator[bytes]:
+        audio, sample_rate = self._kokoro.create(
+            text, voice=self._voice_name, lang=self._lang
+        )
+        if sample_rate != self.sample_rate:
+            raise TTSError(
+                f"Kokoro returned {sample_rate} Hz, expected {self.sample_rate} Hz"
+            )
+        yield (np.clip(audio, -1.0, 1.0) * 32767).astype("<i2").tobytes()
 
 
 class PiperTTSEngine(TTSEngine):
     """Piper TTS engine implementation.
 
-    Uses the piper-tts Python library. Auto-downloads the voice model
-    on first use.
+    Faster than Kokoro but less natural. Auto-downloads the voice model
+    on first use. Piper emits sentences back to back, so a short pause is
+    inserted after each sentence.
     """
 
-    def __init__(self, voice: str = DEFAULT_VOICE) -> None:
+    def __init__(self, voice: str = DEFAULT_PIPER_VOICE) -> None:
         """Initialize the Piper TTS engine.
 
         Args:
@@ -65,155 +218,70 @@ class PiperTTSEngine(TTSEngine):
         self._voice_name = voice
 
         try:
-            from piper import PiperVoice  # noqa: F401
-            from piper.download import ensure_voice_exists, find_voice, get_voices
+            from piper import PiperVoice
+            from piper.download_voices import download_voice
         except ImportError as e:
             raise DependencyError(
                 "piper-tts is required but not installed. "
                 "Install with: pip install piper-tts"
             ) from e
 
-        # Determine model directory
-        self._model_dir = Path.home() / ".local" / "share" / "piper_tts"
-        self._model_dir.mkdir(parents=True, exist_ok=True)
+        PIPER_MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
-        # Download model if needed
         try:
-            voices_info = get_voices(self._model_dir, update_voices=True)
-            ensure_voice_exists(voice, self._model_dir, self._model_dir, voices_info)
-            self._model_path, self._config_path = find_voice(voice, [self._model_dir])
-        except Exception as e:
-            raise TTSError(
-                f"Failed to load or download voice model '{voice}': {e}"
-            ) from e
-
-        # Load the voice
-        try:
+            download_voice(voice, PIPER_MODEL_DIR)
             self._voice = PiperVoice.load(
-                str(self._model_path),
-                config_path=str(self._config_path),
+                str(PIPER_MODEL_DIR / f"{voice}.onnx"),
+                config_path=str(PIPER_MODEL_DIR / f"{voice}.onnx.json"),
             )
         except Exception as e:
-            raise TTSError(f"Failed to initialize Piper voice: {e}") from e
+            raise TTSError(f"Failed to load Piper voice '{voice}': {e}") from e
 
+        self.sample_rate = self._voice.config.sample_rate
         logger.info("Piper TTS initialized with voice: %s", voice)
-
-    def generate(self, text: str, output_path: Path) -> Path:
-        """Generate audio from text using Piper TTS.
-
-        For texts exceeding MAX_TTS_CHUNK_CHARS, splits at sentence
-        boundaries and concatenates the results.
-
-        Args:
-            text: The text to synthesize.
-            output_path: Path for the output WAV file.
-
-        Returns:
-            The output_path.
-
-        Raises:
-            TTSError: If Piper fails to generate audio.
-        """
-        text = text.strip()
-        if not text:
-            return self.generate_silence(output_path)
-
-        try:
-            if len(text) <= MAX_TTS_CHUNK_CHARS:
-                self._synthesize_to_wav(text, output_path)
-            else:
-                chunks = self._split_into_chunks(text)
-                logger.debug("Split text into %d chunks for TTS", len(chunks))
-                self._synthesize_chunks_to_wav(chunks, output_path)
-        except TTSError:
-            raise
-        except Exception as e:
-            raise TTSError(
-                f"TTS generation failed: {e} "
-                f"(text starts with: '{text[:100]}...')"
-            ) from e
-
-        return output_path
 
     def get_voice_name(self) -> str:
         """Return 'Piper TTS (lessac)'."""
         return f"Piper TTS ({self._voice_name.split('-')[-2]})"
 
-    def generate_silence(self, output_path: Path, duration_ms: int = 1000) -> Path:
-        """Generate a silent WAV file.
+    def _synthesize_paragraph(self, text: str) -> Iterator[bytes]:
+        pause = self._silence(SENTENCE_PAUSE_MS)
+        for chunk in self._voice.synthesize(text):
+            yield chunk.audio_int16_bytes
+            yield pause
 
-        Args:
-            output_path: Path for the output WAV file.
-            duration_ms: Duration of silence in milliseconds.
 
-        Returns:
-            The output_path.
-        """
-        sample_rate = DEFAULT_SAMPLE_RATE
-        num_samples = int(sample_rate * duration_ms / 1000)
-        silent_data = struct.pack(f"<{num_samples}h", *([0] * num_samples))
+def create_tts_engine(
+    engine: str = DEFAULT_ENGINE,
+    voice: str | None = None,
+) -> TTSEngine:
+    """Build a TTS engine by name.
 
-        with wave.open(str(output_path), "wb") as wf:
-            wf.setnchannels(1)
-            wf.setsampwidth(2)  # 16-bit
-            wf.setframerate(sample_rate)
-            wf.writeframes(silent_data)
+    Args:
+        engine: 'kokoro' or 'piper'.
+        voice: Voice name; None selects the engine's default voice.
 
-        return output_path
+    Returns:
+        An initialized TTSEngine.
 
-    def _synthesize_to_wav(self, text: str, output_path: Path) -> None:
-        """Synthesize text to a single WAV file."""
-        with wave.open(str(output_path), "wb") as wav_file:
-            self._voice.synthesize(text, wav_file)
+    Raises:
+        DependencyError: If the engine's package is not installed.
+        TTSError: If the engine name, model, or voice is invalid.
+    """
+    if engine == "kokoro":
+        return KokoroTTSEngine(voice or DEFAULT_KOKORO_VOICE)
+    if engine == "piper":
+        return PiperTTSEngine(voice or DEFAULT_PIPER_VOICE)
+    raise TTSError(f"Unknown TTS engine '{engine}'. Choose 'kokoro' or 'piper'.")
 
-    def _synthesize_chunks_to_wav(self, chunks: list[str], output_path: Path) -> None:
-        """Synthesize multiple text chunks and concatenate to one WAV."""
-        # Synthesize each chunk to a buffer, then concatenate
-        all_audio_data = bytearray()
-        sample_rate = None
-        sample_width = None
 
-        for i, chunk in enumerate(chunks):
-            buf = io.BytesIO()
-            with wave.open(buf, "wb") as wav_file:
-                self._voice.synthesize(chunk, wav_file)
-
-            buf.seek(0)
-            with wave.open(buf, "rb") as wav_file:
-                if sample_rate is None:
-                    sample_rate = wav_file.getframerate()
-                    sample_width = wav_file.getsampwidth()
-                all_audio_data.extend(wav_file.readframes(wav_file.getnframes()))
-
-        # Write concatenated audio
-        with wave.open(str(output_path), "wb") as wav_file:
-            wav_file.setnchannels(1)
-            wav_file.setsampwidth(sample_width or 2)
-            wav_file.setframerate(sample_rate or DEFAULT_SAMPLE_RATE)
-            wav_file.writeframes(bytes(all_audio_data))
-
-    @staticmethod
-    def _split_into_chunks(text: str) -> list[str]:
-        """Split text at sentence boundaries into chunks under the limit.
-
-        Splits on sentence-ending punctuation (. ! ?) followed by
-        whitespace, keeping chunks under MAX_TTS_CHUNK_CHARS.
-        """
-        sentences = re.split(r"(?<=[.!?])\s+", text)
-        chunks: list[str] = []
-        current_chunk: list[str] = []
-        current_length = 0
-
-        for sentence in sentences:
-            sentence_len = len(sentence)
-            if current_length + sentence_len > MAX_TTS_CHUNK_CHARS and current_chunk:
-                chunks.append(" ".join(current_chunk))
-                current_chunk = []
-                current_length = 0
-            current_chunk.append(sentence)
-            current_length += sentence_len + 1  # +1 for space
-
-        if current_chunk:
-            chunks.append(" ".join(current_chunk))
-
-        return chunks
+def _download_if_missing(url: str, path: Path) -> None:
+    """Download url to path unless it already exists (atomic rename)."""
+    if path.exists() and path.stat().st_size > 0:
+        return
+    logger.info("Downloading %s (first run only)...", path.name)
+    partial = path.with_suffix(path.suffix + ".part")
+    with urllib.request.urlopen(url) as response, open(partial, "wb") as f:
+        while block := response.read(1 << 20):
+            f.write(block)
+    partial.rename(path)
