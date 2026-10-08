@@ -16,6 +16,8 @@ KOKORO_MODEL_URL: str = (
 KOKORO_MODEL_FILE: str = "kokoro-v1.0.onnx"
 KOKORO_VOICES_FILE: str = "voices-v1.0.bin"
 PIPER_MODEL_DIR: Path = Path.home() / ".local" / "share" / "piper_tts"
+# Kokoro holds a whole call's audio in RAM; 2,000 chars is about 2 minutes
+MAX_TTS_CHUNK_CHARS: int = 2_000
 
 # Pauses (Piper butts sentences together; Kokoro adds its own sentence pauses)
 SENTENCE_PAUSE_MS: int = 300

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "epub2audiobook"
 version = "0.1.0"
-description = "Convert ePub files to M4B audiobooks with chapter markers using Piper TTS"
+description = "Convert ePub files to M4B audiobooks with chapter markers using local Kokoro TTS"
 readme = "README.md"
 license = "GPL-3.0-or-later"
 requires-python = ">=3.10"

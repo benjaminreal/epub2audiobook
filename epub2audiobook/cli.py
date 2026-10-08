@@ -105,6 +105,12 @@ def main() -> int:
         logger.error("%s", e)
         return 3
 
+    try:
+        output_path = _resolve_output_path(args.output, metadata.title)
+    except InputError as e:
+        logger.error("%s", e)
+        return 1
+
     # Stage 4: Preprocess text
     for chapter in chapters:
         chapter.text = preprocess_text(chapter.text)
@@ -162,8 +168,6 @@ def main() -> int:
         return 3
 
     # Stage 6: Assembly
-    output_path = _resolve_output_path(args.output, metadata.title)
-
     if output_path.exists():
         logger.warning("Overwriting existing file: %s", output_path)
 
@@ -339,15 +343,32 @@ def open_file_dialog() -> Path | None:
 
 
 def _resolve_output_path(output_arg: Path | None, title: str) -> Path:
-    """Determine the output path for the M4B file.
+    """Determine and validate the output path for the M4B file.
 
-    A directory argument gets the default '{title}.m4b' filename.
+    Runs before TTS, so a bad path fails in seconds rather than after
+    hours of synthesis. A directory, or a path without an extension, gets
+    the default '{title}.m4b' filename and is created if missing.
+
+    Raises:
+        InputError: If the path has an extension other than .m4b, or the
+            directory cannot be created.
     """
     filename = sanitize_filename(title) + ".m4b"
-    if output_arg is not None:
-        output_path = output_arg.expanduser().resolve()
-        if output_path.is_dir():
-            return output_path / filename
-        return output_path
+    if output_arg is None:
+        return DEFAULT_OUTPUT_DIR / filename
 
-    return DEFAULT_OUTPUT_DIR / filename
+    output_path = output_arg.expanduser().resolve()
+    if output_path.is_dir() or not output_path.suffix:
+        try:
+            output_path.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            raise InputError(
+                f"Cannot create output directory {output_path}: {e}"
+            ) from e
+        return output_path / filename
+
+    if output_path.suffix.lower() != ".m4b":
+        raise InputError(
+            f"Output must be a .m4b file or a directory, got: {output_path.name}"
+        )
+    return output_path

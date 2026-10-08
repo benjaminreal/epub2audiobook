@@ -264,19 +264,44 @@ def _extract_chapters_from_spine(
     return chapters
 
 
+_BLOCK_TAGS = [
+    "address", "blockquote", "dd", "div", "dl", "dt", "figcaption", "figure",
+    "footer", "h1", "h2", "h3", "h4", "h5", "h6", "header", "hr", "li", "ol",
+    "p", "pre", "section", "table", "td", "th", "tr", "ul",
+]
+_PARAGRAPH_BREAK = " "
+_LINE_BREAK = " "
+
+
 def _html_to_text(html_content: str) -> str:
-    """Extract visible text from HTML, preserving paragraph boundaries."""
+    """Extract visible text from HTML, one paragraph per block element.
+
+    Paragraph breaks come from the HTML structure, not from line wrapping
+    in the source: whitespace inside a block collapses to single spaces,
+    and paragraphs are joined with a blank line. A single <br> is a
+    layout line break and becomes a space; two or more in a row separate
+    paragraphs.
+    """
     soup = BeautifulSoup(html_content, "html.parser")
 
-    # Remove script and style elements
-    for element in soup(["script", "style", "aside"]):
+    # Remove non-visible elements
+    for element in soup(["head", "script", "style", "aside"]):
         element.decompose()
 
     # Remove footnote containers
     for element in soup.find_all(class_=re.compile(r"footnote|endnote", re.IGNORECASE)):
         element.decompose()
 
-    return soup.get_text(separator="\n")
+    for element in soup.find_all(_BLOCK_TAGS):
+        element.insert_before(_PARAGRAPH_BREAK)
+        element.append(_PARAGRAPH_BREAK)
+    for element in soup.find_all("br"):
+        element.replace_with(_LINE_BREAK)
+
+    text = re.sub(f"{_LINE_BREAK}\\s*{_LINE_BREAK}", _PARAGRAPH_BREAK, soup.get_text())
+    # str.split() treats the remaining single line breaks as whitespace
+    paragraphs = (" ".join(block.split()) for block in text.split(_PARAGRAPH_BREAK))
+    return "\n\n".join(p for p in paragraphs if p)
 
 
 def _extract_heading(html_content: str) -> str | None:

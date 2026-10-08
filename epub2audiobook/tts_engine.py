@@ -23,6 +23,7 @@ from epub2audiobook.config import (
     KOKORO_MODEL_FILE,
     KOKORO_MODEL_URL,
     KOKORO_VOICES_FILE,
+    MAX_TTS_CHUNK_CHARS,
     PARAGRAPH_PAUSE_MS,
     PIPER_MODEL_DIR,
     SENTENCE_PAUSE_MS,
@@ -69,7 +70,9 @@ class TTSEngine(ABC):
         """Generate audio from text and save to a WAV file.
 
         Synthesizes paragraph by paragraph, streaming to disk, with a
-        pause after each paragraph.
+        pause after each paragraph. Paragraphs with nothing to speak,
+        such as '* * *' scene breaks, become a pause. Long paragraphs are
+        synthesized in chunks to bound memory.
 
         Args:
             text: The text to synthesize.
@@ -92,8 +95,11 @@ class TTSEngine(ABC):
                 wav_file.setsampwidth(2)  # 16-bit
                 wav_file.setframerate(self.sample_rate)
                 for paragraph in paragraphs:
-                    for frames in self._synthesize_paragraph(paragraph):
-                        wav_file.writeframes(frames)
+                    for chunk in _split_long_text(paragraph, MAX_TTS_CHUNK_CHARS):
+                        if not _has_speakable_text(chunk):
+                            continue
+                        for frames in self._synthesize_paragraph(chunk):
+                            wav_file.writeframes(frames)
                     wav_file.writeframes(pause)
         except TTSError:
             raise
@@ -273,6 +279,42 @@ def create_tts_engine(
     if engine == "piper":
         return PiperTTSEngine(voice or DEFAULT_PIPER_VOICE)
     raise TTSError(f"Unknown TTS engine '{engine}'. Choose 'kokoro' or 'piper'.")
+
+
+def _has_speakable_text(text: str) -> bool:
+    """Return True if text contains a letter or digit.
+
+    Ornament-only text such as '❧' or '• • •' yields no phonemes, and
+    Kokoro raises on it.
+    """
+    return any(ch.isalnum() for ch in text)
+
+
+def _split_long_text(text: str, max_chars: int) -> list[str]:
+    """Split text into chunks of at most max_chars, at sentence ends.
+
+    A sentence longer than max_chars is split at the last space that fits.
+    """
+    if len(text) <= max_chars:
+        return [text]
+
+    pieces: list[str] = []
+    for sentence in re.split(r"(?<=[.!?])\s+", text):
+        while len(sentence) > max_chars:
+            cut = sentence.rfind(" ", 0, max_chars)
+            if cut <= 0:
+                cut = max_chars
+            pieces.append(sentence[:cut])
+            sentence = sentence[cut:].lstrip()
+        pieces.append(sentence)
+
+    chunks: list[str] = []
+    for piece in pieces:
+        if chunks and len(chunks[-1]) + 1 + len(piece) <= max_chars:
+            chunks[-1] += " " + piece
+        else:
+            chunks.append(piece)
+    return [chunk for chunk in chunks if chunk]
 
 
 def _download_if_missing(url: str, path: Path) -> None:
