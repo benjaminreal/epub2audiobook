@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68.0"]
+requires = ["setuptools>=77.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,7 +7,7 @@ name = "epub2audiobook"
 version = "0.1.0"
 description = "Convert ePub files to M4B audiobooks with chapter markers using Piper TTS"
 readme = "README.md"
-license = "MIT"
+license = "GPL-3.0-or-later"
 requires-python = ">=3.10"
 dependencies = [
     "piper-tts>=1.4.0",
