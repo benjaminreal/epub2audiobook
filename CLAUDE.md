@@ -89,7 +89,7 @@ Every module must be runnable and testable in isolation:
 - `assembler.py` can take a folder of WAVs and produce an M4B
 
 ### 4. Fail Loud, Not Silent
-No silent failures. If a chapter fails TTS generation, log the error with chapter number and text snippet, skip the chapter, and continue. Report all failures at the end. Never produce a corrupt M4B without warning.
+No silent failures. If a chapter fails TTS generation, log a content-safe error with chapter number, skip the chapter, and continue. Report all failures at the end. Never produce a corrupt M4B without warning.
 
 ### 5. Progress Feedback Is Not Optional
 Converting a 300-page book takes 30-60 minutes. The user must see:
@@ -151,7 +151,7 @@ This costs nothing now and saves a full rewrite when adding Kokoro/MLX-Audio in 
 
 - Audio intermediate files: `{temp_dir}/chapter_{NNN}.wav` (zero-padded 3 digits)
 - Final output default: `~/Downloads/{book_title}.m4b`
-- Temp directory: Use `tempfile.mkdtemp()`, clean up on success, preserve on failure for debugging
+- Temp directory: Use `tempfile.TemporaryDirectory()` and clean up on exit
 - Config: No config file for MVP. All defaults are in `config.py`. CLI flags override defaults.
 
 ---

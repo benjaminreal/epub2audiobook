@@ -11,6 +11,7 @@ import urllib.request
 import wave
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 import numpy as np
@@ -31,6 +32,18 @@ from epub2audiobook.config import (
 from epub2audiobook.utils import DependencyError
 
 logger = logging.getLogger(__name__)
+
+
+@contextmanager
+def _suppress_kokoro_logging() -> Iterator[None]:
+    """Suppress only Kokoro's logger while it handles book content."""
+    kokoro_logger = logging.getLogger("kokoro_onnx")
+    was_disabled = kokoro_logger.disabled
+    kokoro_logger.disabled = True
+    try:
+        yield
+    finally:
+        kokoro_logger.disabled = was_disabled
 
 # Kokoro voice-name prefix -> espeak language code
 KOKORO_LANGUAGES: dict[str, str] = {
@@ -101,13 +114,12 @@ class TTSEngine(ABC):
                         for frames in self._synthesize_paragraph(chunk):
                             wav_file.writeframes(frames)
                     wav_file.writeframes(pause)
-        except TTSError:
-            raise
-        except Exception as e:
+        except Exception as error:
+            # Backend errors can contain source text or phonemes. Keep only
+            # the stage and exception type at the public engine boundary.
             raise TTSError(
-                f"TTS generation failed: {e} "
-                f"(text starts with: '{text[:100]}...')"
-            ) from e
+                f"TTS generation failed ({type(error).__name__})"
+            ) from None
 
         return output_path
 
@@ -154,11 +166,11 @@ class KokoroTTSEngine(TTSEngine):
 
         try:
             from kokoro_onnx import Kokoro
-        except ImportError as e:
+        except ImportError:
             raise DependencyError(
                 "kokoro-onnx is required but not installed. "
                 "Install with: pip install kokoro-onnx"
-            ) from e
+            ) from None
 
         self._lang = KOKORO_LANGUAGES.get(voice[:1])
         if self._lang is None:
@@ -172,17 +184,21 @@ class KokoroTTSEngine(TTSEngine):
             for filename in (KOKORO_MODEL_FILE, KOKORO_VOICES_FILE):
                 _download_if_missing(KOKORO_MODEL_URL + filename,
                                      KOKORO_MODEL_DIR / filename)
-            self._kokoro = Kokoro(
-                str(KOKORO_MODEL_DIR / KOKORO_MODEL_FILE),
-                str(KOKORO_MODEL_DIR / KOKORO_VOICES_FILE),
-            )
-        except Exception as e:
-            raise TTSError(f"Failed to load Kokoro model: {e}") from e
+            with _suppress_kokoro_logging():
+                self._kokoro = Kokoro(
+                    str(KOKORO_MODEL_DIR / KOKORO_MODEL_FILE),
+                    str(KOKORO_MODEL_DIR / KOKORO_VOICES_FILE),
+                )
+                available_voices = self._kokoro.get_voices()
+        except Exception as error:
+            raise TTSError(
+                f"Failed to initialize Kokoro ({type(error).__name__})"
+            ) from None
 
-        if voice not in self._kokoro.get_voices():
+        if voice not in available_voices:
             raise TTSError(
                 f"Unknown Kokoro voice '{voice}'. Available: "
-                f"{', '.join(sorted(self._kokoro.get_voices()))}"
+                f"{', '.join(sorted(available_voices))}"
             )
 
         self.sample_rate = 24_000
@@ -193,9 +209,10 @@ class KokoroTTSEngine(TTSEngine):
         return f"Kokoro ({self._voice_name})"
 
     def _synthesize_paragraph(self, text: str) -> Iterator[bytes]:
-        audio, sample_rate = self._kokoro.create(
-            text, voice=self._voice_name, lang=self._lang
-        )
+        with _suppress_kokoro_logging():
+            audio, sample_rate = self._kokoro.create(
+                text, voice=self._voice_name, lang=self._lang
+            )
         if sample_rate != self.sample_rate:
             raise TTSError(
                 f"Kokoro returned {sample_rate} Hz, expected {self.sample_rate} Hz"
@@ -226,24 +243,25 @@ class PiperTTSEngine(TTSEngine):
         try:
             from piper import PiperVoice
             from piper.download_voices import download_voice
-        except ImportError as e:
+        except ImportError:
             raise DependencyError(
                 "piper-tts is required but not installed. "
                 "Install with: pip install piper-tts"
-            ) from e
-
-        PIPER_MODEL_DIR.mkdir(parents=True, exist_ok=True)
+            ) from None
 
         try:
+            PIPER_MODEL_DIR.mkdir(parents=True, exist_ok=True)
             download_voice(voice, PIPER_MODEL_DIR)
             self._voice = PiperVoice.load(
                 str(PIPER_MODEL_DIR / f"{voice}.onnx"),
                 config_path=str(PIPER_MODEL_DIR / f"{voice}.onnx.json"),
             )
-        except Exception as e:
-            raise TTSError(f"Failed to load Piper voice '{voice}': {e}") from e
+            self.sample_rate = self._voice.config.sample_rate
+        except Exception as error:
+            raise TTSError(
+                f"Failed to initialize Piper voice ({type(error).__name__})"
+            ) from None
 
-        self.sample_rate = self._voice.config.sample_rate
         logger.info("Piper TTS initialized with voice: %s", voice)
 
     def get_voice_name(self) -> str:
