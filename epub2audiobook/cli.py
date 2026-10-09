@@ -2,15 +2,16 @@
 
 import argparse
 import logging
+import os
 import platform
-import shutil
+import stat
 import subprocess
 import sys
 import tempfile
 import zipfile
 from pathlib import Path
 
-from epub2audiobook.config import DEFAULT_OUTPUT_DIR, DEFAULT_VOICE, VERSION
+from epub2audiobook.config import DEFAULT_ENGINE, DEFAULT_OUTPUT_DIR, VERSION
 from epub2audiobook.utils import (
     DependencyError,
     DiskSpaceError,
@@ -64,6 +65,8 @@ def main() -> int:
                 f"\n"
                 f"Options:\n"
                 f"  --output, -o  Output path for the M4B file\n"
+                "  --engine      TTS engine: kokoro (default) or piper\n"
+                "  --voice       Voice name (default depends on engine)\n"
                 f"  --verbose, -v Enable debug logging\n"
                 f"  --version     Print version and exit",
                 file=sys.stderr,
@@ -88,7 +91,7 @@ def main() -> int:
         from epub2audiobook.assembler import AssemblyError, assemble_audiobook
         from epub2audiobook.parser import BookMetadata, ParsingError, parse_epub
         from epub2audiobook.preprocessor import preprocess_text
-        from epub2audiobook.tts_engine import PiperTTSEngine, TTSError
+        from epub2audiobook.tts_engine import TTSError, create_tts_engine
     except ImportError as e:
         logger.error("Missing dependency: %s", e)
         return 2
@@ -102,6 +105,12 @@ def main() -> int:
     except ParsingError as e:
         logger.error("%s", e)
         return 3
+
+    try:
+        output_path = _resolve_output_path(args.output, metadata.title)
+    except InputError as e:
+        logger.error("%s", e)
+        return 1
 
     # Stage 4: Preprocess text
     for chapter in chapters:
@@ -120,7 +129,7 @@ def main() -> int:
 
     # Stage 5: TTS generation
     try:
-        tts = PiperTTSEngine(voice=DEFAULT_VOICE)
+        tts = create_tts_engine(args.engine, args.voice)
     except DependencyError as e:
         logger.error("%s", e)
         return 2
@@ -128,67 +137,78 @@ def main() -> int:
         logger.error("%s", e)
         return 2
 
-    temp_dir = Path(tempfile.mkdtemp(prefix="epub2audiobook_"))
-    logger.debug("Temp directory: %s", temp_dir)
-
     chapter_wav_paths: list[Path] = []
     chapter_titles: list[str] = []
-    skipped_chapters: list[tuple[int, str, str]] = []
+    skipped_chapters: list[tuple[int, str]] = []
     progress = ProgressTracker(len(chapters))
 
-    for chapter in chapters:
-        idx = chapter.index + 1
-        progress.start_chapter(idx, chapter.title)
-
-        wav_path = temp_dir / f"chapter_{idx:03d}.wav"
-
-        try:
-            tts.generate(chapter.text, wav_path)
-            chapter_wav_paths.append(wav_path)
-            chapter_titles.append(chapter.title)
-        except TTSError as e:
-            logger.warning(
-                "TTS failed for chapter %d: %s", idx, e
-            )
-            skipped_chapters.append((idx, chapter.title, str(e)))
-            continue
-
-        progress.finish_chapter(idx)
-
-    if not chapter_wav_paths:
-        logger.error("All chapters failed TTS generation. No output produced.")
-        return 3
-
-    # Stage 6: Assembly
-    output_path = _resolve_output_path(args.output, metadata.title)
-
-    if output_path.exists():
-        logger.warning("Overwriting existing file: %s", output_path)
-
     try:
-        assemble_audiobook(
-            chapter_wav_paths, metadata, chapter_titles, output_path,
+        temp_context = tempfile.TemporaryDirectory(prefix="epub2audiobook_")
+    except OSError as e:
+        logger.error(
+            "Cannot create conversion temporary directory: %s",
+            _safe_os_error(e),
         )
-    except (AssemblyError, DependencyError) as e:
-        logger.error("Assembly failed: %s", e)
-        logger.info("Temp files preserved at: %s", temp_dir)
         return 3
 
-    # Stage 7: Output
-    # Clean up temp directory on success
-    shutil.rmtree(temp_dir, ignore_errors=True)
+    with temp_context as temp_dir_name:
+        temp_dir = Path(temp_dir_name)
+        logger.debug("Temp directory: %s", temp_dir)
+
+        for chapter in chapters:
+            idx = chapter.index + 1
+            progress.start_chapter(idx, chapter.title)
+
+            wav_path = temp_dir / f"chapter_{idx:03d}.wav"
+
+            try:
+                tts.generate(chapter.text, wav_path)
+                chapter_wav_paths.append(wav_path)
+                chapter_titles.append(chapter.title)
+            except TTSError:
+                logger.warning(
+                    "TTS synthesis failed for chapter %d (TTSError)", idx
+                )
+                skipped_chapters.append((idx, chapter.title))
+                continue
+
+            progress.finish_chapter(idx)
+
+        if not chapter_wav_paths:
+            logger.error("All chapters failed TTS generation. No output produced.")
+            return 3
+
+        # Stage 6: Assembly and output stat are one filesystem boundary.
+        try:
+            try:
+                output_path.stat()
+            except FileNotFoundError:
+                pass
+            else:
+                logger.warning("Overwriting existing file: %s", output_path)
+
+            assemble_audiobook(
+                chapter_wav_paths, metadata, chapter_titles, output_path,
+                tts.get_voice_name(),
+            )
+            output_stat = output_path.stat()
+            if not stat.S_ISREG(output_stat.st_mode):
+                raise OSError("assembled output is not a regular file")
+            file_size_mb = output_stat.st_size / (1024 * 1024)
+        except (AssemblyError, DependencyError) as e:
+            logger.error("Assembly failed: %s", e)
+            return 3
+        except OSError as e:
+            logger.error("Output filesystem error: %s", _safe_os_error(e))
+            return 3
 
     # Print summary
-    file_size_mb = output_path.stat().st_size / (1024 * 1024)
     elapsed = progress.get_elapsed()
 
     # Calculate total duration from the M4B
     try:
-        from pydub import AudioSegment
-        audio = AudioSegment.from_file(str(output_path), format="m4b")
-        total_duration = len(audio) / 1000.0
-        del audio
-        duration_str = format_duration(total_duration)
+        from mutagen.mp4 import MP4
+        duration_str = format_duration(MP4(str(output_path)).info.length)
     except Exception:
         duration_str = "unknown"
 
@@ -201,8 +221,8 @@ def main() -> int:
 
     if skipped_chapters:
         print(f"\nWarning: {len(skipped_chapters)} chapter(s) skipped due to TTS errors:")
-        for idx, title, error in skipped_chapters:
-            print(f"  - Chapter {idx}: \"{title}\" ({error})")
+        for idx, title in skipped_chapters:
+            print(f"  - Chapter {idx}: \"{title}\" (TTS synthesis failed: TTSError)")
 
     return 0
 
@@ -214,7 +234,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         argv: Argument list. If None, uses sys.argv[1:].
 
     Returns:
-        Namespace with epub_path, output, verbose, version.
+        Namespace with epub_path, output, engine, voice, verbose, version.
     """
     parser = argparse.ArgumentParser(
         prog="epub2audiobook",
@@ -232,6 +252,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=Path,
         default=None,
         help=f"Output path for the M4B file (default: {DEFAULT_OUTPUT_DIR}/{{title}}.m4b)",
+    )
+    parser.add_argument(
+        "--engine",
+        choices=["kokoro", "piper"],
+        default=DEFAULT_ENGINE,
+        help=f"TTS engine (default: {DEFAULT_ENGINE}). "
+             "Kokoro sounds more natural; Piper is about 8x faster.",
+    )
+    parser.add_argument(
+        "--voice",
+        default=None,
+        help="Voice name, e.g. af_heart or bm_george for Kokoro, "
+             "en_US-lessac-medium for Piper (default: the engine's default).",
     )
     parser.add_argument(
         "--verbose", "-v",
@@ -326,9 +359,122 @@ def open_file_dialog() -> Path | None:
 
 
 def _resolve_output_path(output_arg: Path | None, title: str) -> Path:
-    """Determine the output path for the M4B file."""
-    if output_arg is not None:
-        return output_arg.expanduser().resolve()
+    """Determine and validate the output path for the M4B file.
 
+    Runs before TTS, so a bad path fails in seconds rather than after
+    hours of synthesis. A directory, or a path without an extension, gets
+    the default '{title}.m4b' filename and is created if missing.
+
+    Raises:
+        InputError: If the path has an extension other than .m4b, or the
+            directory cannot be created.
+    """
     filename = sanitize_filename(title) + ".m4b"
-    return DEFAULT_OUTPUT_DIR / filename
+    try:
+        if output_arg is None:
+            output_dir = DEFAULT_OUTPUT_DIR.expanduser().resolve()
+            output_dir.mkdir(parents=True, exist_ok=True)
+            output_path = output_dir / filename
+        else:
+            requested_path = output_arg.expanduser().resolve()
+            try:
+                requested_stat = requested_path.stat()
+            except FileNotFoundError:
+                requested_stat = None
+
+            # Keep existing-directory-first semantics, including directories
+            # whose names end in .m4b.
+            is_directory = (
+                requested_stat is not None
+                and stat.S_ISDIR(requested_stat.st_mode)
+            )
+            if is_directory or not requested_path.suffix:
+                requested_path.mkdir(parents=True, exist_ok=True)
+                output_path = requested_path / filename
+            else:
+                if requested_path.suffix.lower() != ".m4b":
+                    raise InputError(
+                        "Output must be a .m4b file or a directory, "
+                        f"got: {requested_path.name}"
+                    )
+                output_path = requested_path
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        parent_stat = output_path.parent.stat()
+        if not stat.S_ISDIR(parent_stat.st_mode):
+            raise InputError(
+                f"Output parent is not a directory: {output_path.parent}"
+            )
+
+        _validate_output_file(output_path)
+        _probe_directory_writable(output_path.parent)
+        _check_existing_output_writable(output_path)
+        return output_path
+    except InputError:
+        raise
+    except OSError as e:
+        error_path = locals().get(
+            "output_path",
+            output_arg if output_arg is not None else DEFAULT_OUTPUT_DIR,
+        )
+        raise InputError(
+            f"Cannot prepare output path {error_path}: {_safe_os_error(e)}"
+        ) from e
+
+
+def _validate_output_file(output_path: Path) -> None:
+    """Reject an existing destination that is not a regular file."""
+    try:
+        output_stat = output_path.stat()
+    except FileNotFoundError:
+        return
+
+    if not stat.S_ISREG(output_stat.st_mode):
+        raise InputError(
+            f"Output destination is not a regular file: {output_path}"
+        )
+
+
+def _probe_directory_writable(directory: Path) -> None:
+    """Verify directory write access with a temporary sibling probe."""
+    descriptor = -1
+    probe_path: Path | None = None
+    try:
+        descriptor, probe_name = tempfile.mkstemp(
+            prefix=".epub2audiobook-write-test-",
+            suffix=".tmp",
+            dir=directory,
+        )
+        probe_path = Path(probe_name)
+        probe_descriptor = descriptor
+        descriptor = -1
+        os.close(probe_descriptor)
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        if probe_path is not None:
+            probe_path.unlink()
+
+
+def _check_existing_output_writable(output_path: Path) -> None:
+    """Open an existing output for writing without truncating its contents."""
+    try:
+        output_stat = output_path.stat()
+    except FileNotFoundError:
+        return
+
+    if not stat.S_ISREG(output_stat.st_mode):
+        raise InputError(
+            f"Output destination is not a regular file: {output_path}"
+        )
+
+    descriptor = os.open(
+        output_path,
+        os.O_WRONLY | getattr(os, "O_NONBLOCK", 0),
+    )
+    os.close(descriptor)
+
+
+def _safe_os_error(error: OSError) -> str:
+    """Return filesystem error details without arbitrary exception text."""
+    return error.strerror or type(error).__name__

@@ -1,13 +1,13 @@
 [build-system]
-requires = ["setuptools>=68.0"]
+requires = ["setuptools>=77.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "epub2audiobook"
 version = "0.1.0"
-description = "Convert ePub files to M4B audiobooks with chapter markers using Piper TTS"
+description = "Convert ePub files to M4B audiobooks with chapter markers using local Kokoro TTS"
 readme = "README.md"
-license = "MIT"
+license = "GPL-3.0-or-later"
 requires-python = ">=3.10"
 dependencies = [
     "piper-tts>=1.4.0",
@@ -15,6 +15,8 @@ dependencies = [
     "beautifulsoup4>=4.12",
     "pydub>=0.25",
     "mutagen>=1.47",
+    "kokoro-onnx>=0.6.1",
+    "numpy>=2.2.6",
 ]
 
 [project.optional-dependencies]

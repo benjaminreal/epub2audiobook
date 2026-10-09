@@ -28,6 +28,7 @@ def assemble_audiobook(
     metadata: BookMetadata,
     chapter_titles: list[str],
     output_path: Path,
+    narrator: str,
 ) -> Path:
     """Assemble chapter WAV files into a single M4B audiobook.
 
@@ -36,6 +37,7 @@ def assemble_audiobook(
         metadata: Book metadata (title, author, cover).
         chapter_titles: Ordered list of chapter title strings.
         output_path: Final output path for the M4B file.
+        narrator: Narrator name for the album artist tag (the TTS voice).
 
     Returns:
         The output_path on success.
@@ -78,7 +80,6 @@ def assemble_audiobook(
         encode_m4b(concat_list_path, metadata_path, output_path)
 
     # Phase 2: Mutagen metadata
-    narrator = "Piper TTS (lessac)"
     embed_metadata(output_path, metadata, narrator)
 
     logger.info("M4B assembly complete: %s", output_path)

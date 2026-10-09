@@ -96,7 +96,7 @@ def parse_epub(epub_path: Path) -> tuple[BookMetadata, list[Chapter]]:
     # Detect and handle flat ePubs
     if _is_flat_epub(chapters):
         logger.info("Flat ePub detected. Splitting on headings.")
-        chapters = _split_flat_chapters(chapters)
+        chapters = _split_flat_chapters(book, chapters)
 
     if not chapters:
         raise ParsingError("No chapters could be extracted from the ePub.")
@@ -264,19 +264,44 @@ def _extract_chapters_from_spine(
     return chapters
 
 
+_BLOCK_TAGS = [
+    "address", "blockquote", "dd", "div", "dl", "dt", "figcaption", "figure",
+    "footer", "h1", "h2", "h3", "h4", "h5", "h6", "header", "hr", "li", "ol",
+    "p", "pre", "section", "table", "td", "th", "tr", "ul",
+]
+_PARAGRAPH_BREAK = " "
+_LINE_BREAK = " "
+
+
 def _html_to_text(html_content: str) -> str:
-    """Extract visible text from HTML, preserving paragraph boundaries."""
+    """Extract visible text from HTML, one paragraph per block element.
+
+    Paragraph breaks come from the HTML structure, not from line wrapping
+    in the source: whitespace inside a block collapses to single spaces,
+    and paragraphs are joined with a blank line. A single <br> is a
+    layout line break and becomes a space; two or more in a row separate
+    paragraphs.
+    """
     soup = BeautifulSoup(html_content, "html.parser")
 
-    # Remove script and style elements
-    for element in soup(["script", "style", "aside"]):
+    # Remove non-visible elements
+    for element in soup(["head", "script", "style", "aside"]):
         element.decompose()
 
     # Remove footnote containers
     for element in soup.find_all(class_=re.compile(r"footnote|endnote", re.IGNORECASE)):
         element.decompose()
 
-    return soup.get_text(separator="\n")
+    for element in soup.find_all(_BLOCK_TAGS):
+        element.insert_before(_PARAGRAPH_BREAK)
+        element.append(_PARAGRAPH_BREAK)
+    for element in soup.find_all("br"):
+        element.replace_with(_LINE_BREAK)
+
+    text = re.sub(f"{_LINE_BREAK}\\s*{_LINE_BREAK}", _PARAGRAPH_BREAK, soup.get_text())
+    # str.split() treats the remaining single line breaks as whitespace
+    paragraphs = (" ".join(block.split()) for block in text.split(_PARAGRAPH_BREAK))
+    return "\n\n".join(p for p in paragraphs if p)
 
 
 def _extract_heading(html_content: str) -> str | None:
@@ -299,53 +324,56 @@ def _is_flat_epub(chapters: list[Chapter]) -> bool:
     return total_text >= FLAT_EPUB_MIN_TEXT_LENGTH
 
 
-def _split_flat_chapters(chapters: list[Chapter]) -> list[Chapter]:
+_SPLIT_MARKER = "@@EPUB2AUDIOBOOK_SPLIT@@"
+
+
+def _split_flat_chapters(
+    book: epub.EpubBook,
+    chapters: list[Chapter],
+) -> list[Chapter]:
     """Split flat ePub chapters on heading tags.
 
-    Takes the existing chapters (which are full spine items) and
-    splits their text at h1/h2 boundaries to create synthetic chapters.
+    Re-parses the HTML of each spine item and starts a new chapter at
+    every h1/h2. Items with fewer than two headings are kept whole, so a
+    single-story ePub stays one chapter instead of being split per paragraph.
     """
     new_chapters: list[Chapter] = []
-    chapter_index = 0
 
     for chapter in chapters:
-        # Re-parse the original HTML to find headings
-        # Since we only have text at this point, we need to split on
-        # heading-like patterns (lines that look like titles)
-        # Better approach: we split using the raw text's paragraph structure
-        parts = re.split(r"\n(?=.{1,80}\n\n)", chapter.text)
-
-        if len(parts) <= 1:
-            # Can't split further, keep as-is
-            chapter.index = chapter_index
+        item = book.get_item_with_href(chapter.source_href)
+        if item is None:
             new_chapters.append(chapter)
-            chapter_index += 1
             continue
 
-        for i, part in enumerate(parts):
-            part = part.strip()
-            if not part:
-                continue
+        html_content = item.get_content().decode("utf-8", errors="replace")
+        soup = BeautifulSoup(html_content, "html.parser")
+        headings = soup.find_all(["h1", "h2"])
+        if len(headings) < 2:
+            new_chapters.append(chapter)
+            continue
 
-            # First line of each part might be a heading
-            lines = part.split("\n", 1)
-            if len(lines) == 2 and len(lines[0]) < 80:
-                title = lines[0].strip()
-                text = lines[1].strip()
-            else:
-                title = f"Chapter {chapter_index + 1}"
-                text = part
+        titles = [h.get_text(strip=True) for h in headings]
+        for heading in headings:
+            heading.insert_before(_SPLIT_MARKER)
 
-            if not title:
-                title = f"Chapter {chapter_index + 1}"
-
+        preamble, *sections = _html_to_text(str(soup)).split(_SPLIT_MARKER)
+        if preamble.strip():
             new_chapters.append(Chapter(
-                index=chapter_index,
-                title=title,
+                index=0,
+                title=chapter.title,
+                text=preamble,
+                source_href=chapter.source_href,
+            ))
+        for title, text in zip(titles, sections):
+            new_chapters.append(Chapter(
+                index=0,
+                title=title or f"Chapter {len(new_chapters) + 1}",
                 text=text,
                 source_href=chapter.source_href,
             ))
-            chapter_index += 1
+
+    for i, chapter in enumerate(new_chapters):
+        chapter.index = i
 
     return new_chapters if new_chapters else chapters
 

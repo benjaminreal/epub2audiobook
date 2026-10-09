@@ -6,8 +6,22 @@ from pathlib import Path
 VERSION: str = "0.1.0"
 
 # TTS
-DEFAULT_VOICE: str = "en_US-lessac-medium"
-MAX_TTS_CHUNK_CHARS: int = 10_000
+DEFAULT_ENGINE: str = "kokoro"
+DEFAULT_KOKORO_VOICE: str = "af_heart"
+DEFAULT_PIPER_VOICE: str = "en_US-lessac-medium"
+KOKORO_MODEL_DIR: Path = Path.home() / ".local" / "share" / "kokoro_onnx"
+KOKORO_MODEL_URL: str = (
+    "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/"
+)
+KOKORO_MODEL_FILE: str = "kokoro-v1.0.onnx"
+KOKORO_VOICES_FILE: str = "voices-v1.0.bin"
+PIPER_MODEL_DIR: Path = Path.home() / ".local" / "share" / "piper_tts"
+# Kokoro holds a whole call's audio in RAM; 2,000 chars is about 2 minutes
+MAX_TTS_CHUNK_CHARS: int = 2_000
+
+# Pauses (Piper butts sentences together; Kokoro adds its own sentence pauses)
+SENTENCE_PAUSE_MS: int = 300
+PARAGRAPH_PAUSE_MS: int = 600
 
 # Audio encoding
 DEFAULT_BITRATE: str = "64k"
