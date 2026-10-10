@@ -1,8 +1,7 @@
 """TTS engine abstraction with Kokoro and Piper implementations.
 
-Provides an abstract TTSEngine base class that synthesizes text paragraph
-by paragraph with a pause between paragraphs, and two concrete engines:
-KokoroTTSEngine (default, more natural) and PiperTTSEngine (faster).
+Provides a paragraph-based TTSEngine base class and a backend factory.
+The factory selects parallel ONNX by default, optional MLX, or legacy Piper.
 """
 
 import logging
@@ -13,6 +12,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Protocol
 
 import numpy as np
 
@@ -59,6 +59,18 @@ KOKORO_LANGUAGES: dict[str, str] = {
 
 class TTSError(Exception):
     """Raised when TTS generation fails."""
+
+
+class TTSBackend(Protocol):
+    """The conversion pipeline's backend contract."""
+
+    def generate(self, text: str, output_path: Path) -> Path:
+        """Write a chapter WAV and return its path."""
+        ...
+
+    def get_voice_name(self) -> str:
+        """Return a narrator label."""
+        ...
 
 
 class TTSEngine(ABC):
@@ -278,23 +290,35 @@ class PiperTTSEngine(TTSEngine):
 def create_tts_engine(
     engine: str = DEFAULT_ENGINE,
     voice: str | None = None,
-) -> TTSEngine:
+    backend: str = "onnx",
+) -> TTSBackend:
     """Build a TTS engine by name.
 
     Args:
         engine: 'kokoro' or 'piper'.
         voice: Voice name; None selects the engine's default voice.
+        backend: Kokoro runtime: 'onnx' (default) or 'mlx'.
 
     Returns:
-        An initialized TTSEngine.
+        An initialized backend implementing the TTS pipeline contract.
 
     Raises:
         DependencyError: If the engine's package is not installed.
         TTSError: If the engine name, model, or voice is invalid.
     """
     if engine == "kokoro":
-        return KokoroTTSEngine(voice or DEFAULT_KOKORO_VOICE)
+        if backend == "onnx":
+            from epub2audiobook.onnx_parallel import KokoroParallelEngine
+
+            return KokoroParallelEngine(voice or DEFAULT_KOKORO_VOICE)
+        if backend == "mlx":
+            from epub2audiobook.mlx_backend import MLXKokoroEngine
+
+            return MLXKokoroEngine(voice or DEFAULT_KOKORO_VOICE)
+        raise TTSError(f"Unknown Kokoro backend '{backend}'")
     if engine == "piper":
+        if backend != "onnx":
+            raise TTSError("The MLX backend is only available with Kokoro")
         return PiperTTSEngine(voice or DEFAULT_PIPER_VOICE)
     raise TTSError(f"Unknown TTS engine '{engine}'. Choose 'kokoro' or 'piper'.")
 
