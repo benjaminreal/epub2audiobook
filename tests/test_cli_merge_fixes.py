@@ -143,6 +143,9 @@ class CliOutputPreflightTests(unittest.TestCase):
                 generated_dirs: list[Path] = []
 
                 class FakeEngine:
+                    closed = False
+                    directory_existed_at_close = False
+
                     def generate(inner_self, _text: str, path: Path) -> Path:
                         generated_dirs.append(path.parent)
                         if scenario == "all_failed":
@@ -151,6 +154,10 @@ class CliOutputPreflightTests(unittest.TestCase):
                             raise KeyboardInterrupt
                         path.write_bytes(b"synthetic wav")
                         return path
+
+                    def close(inner_self) -> None:
+                        inner_self.closed = True
+                        inner_self.directory_existed_at_close = generated_dirs[0].exists()
 
                     def get_voice_name(inner_self) -> str:
                         return "synthetic voice"
@@ -163,7 +170,8 @@ class CliOutputPreflightTests(unittest.TestCase):
 
                 args = self._args(self._make_epub(), output)
                 assembler = unittest.mock.Mock(side_effect=assemble)
-                run = self._patched_main(args, lambda *_: FakeEngine(), assembler)
+                engine = FakeEngine()
+                run = self._patched_main(args, lambda *_: engine, assembler)
                 if scenario == "interrupted":
                     with run:
                         with self.assertRaises(KeyboardInterrupt):
@@ -174,6 +182,8 @@ class CliOutputPreflightTests(unittest.TestCase):
                         self.assertEqual(cli.main(), expected_code)
 
                 self.assertTrue(generated_dirs)
+                self.assertTrue(engine.closed)
+                self.assertTrue(engine.directory_existed_at_close)
                 self.assertFalse(generated_dirs[0].exists())
                 self.assertEqual(sentinel.read_bytes(), b"leave this alone")
                 self.assertEqual(

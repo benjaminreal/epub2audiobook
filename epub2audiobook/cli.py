@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import zipfile
+from contextlib import ExitStack
 from pathlib import Path
 
 from epub2audiobook.config import DEFAULT_ENGINE, DEFAULT_OUTPUT_DIR, VERSION
@@ -66,6 +67,7 @@ def main() -> int:
                 f"Options:\n"
                 f"  --output, -o  Output path for the M4B file\n"
                 "  --engine      TTS engine: kokoro (default) or piper\n"
+                "  --backend     Kokoro backend: onnx (default) or mlx\n"
                 "  --voice       Voice name (default depends on engine)\n"
                 f"  --verbose, -v Enable debug logging\n"
                 f"  --version     Print version and exit",
@@ -129,7 +131,9 @@ def main() -> int:
 
     # Stage 5: TTS generation
     try:
-        tts = create_tts_engine(args.engine, args.voice)
+        tts = create_tts_engine(
+            args.engine, args.voice, getattr(args, "backend", "onnx")
+        )
     except DependencyError as e:
         logger.error("%s", e)
         return 2
@@ -151,7 +155,11 @@ def main() -> int:
         )
         return 3
 
-    with temp_context as temp_dir_name:
+    with ExitStack() as stack:
+        temp_dir_name = stack.enter_context(temp_context)
+        close_tts = getattr(tts, "close", None)
+        if callable(close_tts):
+            stack.callback(close_tts)
         temp_dir = Path(temp_dir_name)
         logger.debug("Temp directory: %s", temp_dir)
 
@@ -259,6 +267,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=DEFAULT_ENGINE,
         help=f"TTS engine (default: {DEFAULT_ENGINE}). "
              "Kokoro sounds more natural; Piper is about 8x faster.",
+    )
+    parser.add_argument(
+        "--backend",
+        choices=["onnx", "mlx"],
+        default="onnx",
+        help="Kokoro runtime (default: onnx). MLX requires the optional extra.",
     )
     parser.add_argument(
         "--voice",
