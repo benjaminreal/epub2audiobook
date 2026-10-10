@@ -60,9 +60,9 @@ class MLXKokoroEngine(TTSEngine):
         if voice[:1] not in KOKORO_LANGUAGES:
             raise TTSError(f"Unsupported Kokoro voice '{voice}'")
         try:
+            import misaki  # noqa: F401 — needed by the Kokoro phonemizer
             from huggingface_hub import snapshot_download
             from mlx_audio.tts.utils import load_model
-            import misaki  # noqa: F401 — needed by the Kokoro phonemizer
         except ImportError:
             raise DependencyError(
                 "The MLX backend requires the optional dependencies. "

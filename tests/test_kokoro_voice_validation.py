@@ -41,12 +41,14 @@ class OnnxVoiceValidationTests(unittest.TestCase):
         with (
             patch.object(onnx_parallel, "KOKORO_MODEL_DIR", self.root / "models"),
             patch.object(onnx_parallel, "_download_if_missing", side_effect=prepare),
-            patch.object(onnx_parallel.importlib.util, "find_spec", return_value=object()),
+            patch.object(
+                onnx_parallel.importlib.util, "find_spec", return_value=object()
+            ),
         ):
             engine = onnx_parallel.KokoroParallelEngine(voice)
         return engine, calls
 
-    def test_default_voice_is_present_in_local_pack_and_model_stays_unloaded(self) -> None:
+    def test_default_voice_is_present_in_pack_and_model_stays_unloaded(self) -> None:
         engine, calls = self._initialize("af_heart")
         self.assertEqual(engine.get_voice_name(), "Kokoro ONNX (af_heart)")
         self.assertEqual(len(calls), 2)
@@ -73,7 +75,9 @@ class OnnxVoiceValidationTests(unittest.TestCase):
             with self.subTest(catalogue=catalogue):
                 with self.assertRaises(TTSError) as raised:
                     self._initialize("af_heart", catalogue=catalogue)
-                self.assertIn("Failed to read Kokoro voice catalogue", str(raised.exception))
+                self.assertIn(
+                    "Failed to read Kokoro voice catalogue", str(raised.exception)
+                )
                 self.assertNotIn("SECRET_BOOK_TEXT", str(raised.exception))
                 self.assertTrue(raised.exception.__suppress_context__)
 
@@ -147,7 +151,9 @@ class MlxVoiceValidationTests(unittest.TestCase):
                     (self.voices / "not-a-voice-pack.txt").touch()
                 with self.assertRaises(TTSError) as raised:
                     self._initialize("af_heart", catalogue_error=error)
-                self.assertIn("Failed to read Kokoro MLX voice catalogue", str(raised.exception))
+                self.assertIn(
+                    "Failed to read Kokoro MLX voice catalogue", str(raised.exception)
+                )
                 self.assertNotIn("SECRET_BOOK_TEXT", str(raised.exception))
                 self.assertTrue(raised.exception.__suppress_context__)
 
