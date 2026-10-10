@@ -157,7 +157,9 @@ class CliOutputPreflightTests(unittest.TestCase):
 
                     def close(inner_self) -> None:
                         inner_self.closed = True
-                        inner_self.directory_existed_at_close = generated_dirs[0].exists()
+                        inner_self.directory_existed_at_close = (
+                            generated_dirs[0].exists()
+                        )
 
                     def get_voice_name(inner_self) -> str:
                         return "synthetic voice"

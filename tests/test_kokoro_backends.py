@@ -66,7 +66,9 @@ class ParallelOnnxTests(unittest.TestCase):
         with (
             patch.object(onnx_parallel, "KOKORO_MODEL_DIR", models),
             patch.object(onnx_parallel, "_download_if_missing"),
-            patch.object(onnx_parallel.importlib.util, "find_spec", return_value=object()),
+            patch.object(
+                onnx_parallel.importlib.util, "find_spec", return_value=object()
+            ),
         ):
             return onnx_parallel.KokoroParallelEngine()
 
@@ -151,7 +153,9 @@ class ParallelOnnxTests(unittest.TestCase):
             def create(self, _text: str, **_kwargs: str):
                 return np.array([0.0], dtype=np.float32), 24_000
 
-        def make_session(model_path: str, sess_options: FakeOptions, providers: list[str]):
+        def make_session(
+            model_path: str, sess_options: FakeOptions, providers: list[str]
+        ):
             seen.update(path=model_path, options=sess_options, providers=providers)
             return object()
 
@@ -215,7 +219,9 @@ class MlxBackendTests(unittest.TestCase):
                     sys.modules,
                     {
                         "huggingface_hub": fake_hf,
-                        "mlx_audio": SimpleNamespace(tts=SimpleNamespace(utils=fake_utils)),
+                        "mlx_audio": SimpleNamespace(
+                            tts=SimpleNamespace(utils=fake_utils)
+                        ),
                         "mlx_audio.tts": SimpleNamespace(utils=fake_utils),
                         "mlx_audio.tts.utils": fake_utils,
                         "misaki": SimpleNamespace(),
@@ -274,7 +280,9 @@ class MlxBackendTests(unittest.TestCase):
                     sys.modules,
                     {
                         "huggingface_hub": fake_hf,
-                        "mlx_audio": SimpleNamespace(tts=SimpleNamespace(utils=fake_utils)),
+                        "mlx_audio": SimpleNamespace(
+                            tts=SimpleNamespace(utils=fake_utils)
+                        ),
                         "mlx_audio.tts": SimpleNamespace(utils=fake_utils),
                         "mlx_audio.tts.utils": fake_utils,
                         "misaki": SimpleNamespace(),
