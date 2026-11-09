@@ -1,0 +1,120 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="standalone.css"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style id="t3-theme">:root{color-scheme:dark;--background:#0a0a0a;--foreground:#f5f5f5;--muted:#111111;--muted-foreground:#818181;--card:#111111;--card-foreground:#f5f5f5;--popover:#111111;--popover-foreground:#f5f5f5;--secondary:#111111;--secondary-foreground:#f5f5f5;--border:#191919;--input:#1e1e1e;--ring:#346bf1;--primary:#346bf1;--primary-foreground:#ffffff;--accent:#346bf1;--accent-foreground:#ffffff;--accent-surface:#141414;--accent-surface-foreground:#f5f5f5;--destructive:#fb414a;--destructive-foreground:#ff6467;--destructive-surface:#301214;--warning:#fe9a00;--warning-foreground:#ffb900;--warning-surface:#312108;--success:#10b981;--success-foreground:#34d399;--info:#3b82f6;--info-foreground:#60a5fa;--code-background:#111111;--code-foreground:#f5f5f5;--chart-1:#346bf1;--chart-2:#2dd4bf;--chart-3:#fbbf24;--chart-4:#c084fc;--chart-5:#fb7185;--chart-6:#a3e635;--radius:0.625rem;--font-sans:-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;--font-mono:"SF Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;}@media (prefers-color-scheme: light){:root{color-scheme:light;--background:#fcfcfc;--foreground:#27272a;--muted:#fafafa;--muted-foreground:#71717b;--card:#ffffff;--card-foreground:#27272a;--popover:#ffffff;--popover-foreground:#27272a;--secondary:#fafafa;--secondary-foreground:#27272a;--border:#e4e4e7;--input:#d4d4d8;--ring:#1b4ed8;--primary:#1b4ed8;--primary-foreground:#ffffff;--accent:#1b4ed8;--accent-foreground:#ffffff;--accent-surface:#f4f4f5;--accent-surface-foreground:#18181b;--destructive:#fb2c36;--destructive-foreground:#c10007;--destructive-surface:#fcebec;--warning:#fe9a00;--warning-foreground:#bb4d00;--warning-surface:#fcf4e8;--success:#10b981;--success-foreground:#047857;--info:#3b82f6;--info-foreground:#1d4ed8;--code-background:#ffffff;--code-foreground:#27272a;--chart-1:#1b4ed8;--chart-2:#0d9488;--chart-3:#d97706;--chart-4:#9333ea;--chart-5:#e11d48;--chart-6:#65a30d;--radius:0.625rem;--font-sans:-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;--font-mono:"SF Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;}}html{background:var(--background);color:var(--foreground);font-family:var(--font-sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%;scrollbar-width:none}html::-webkit-scrollbar{display:none}body{margin:0}code,kbd,pre,samp{font-family:var(--font-mono)}:where(:focus-visible){outline:2px solid var(--ring)}:focus-visible{outline-width:2px!important;outline-offset:-2px!important}</style><script>(function(){var s=document.getElementById("t3-theme"),n=0;if(!s)return;var b="html{background:var(--background);color:var(--foreground);font-family:var(--font-sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%;scrollbar-width:none}html::-webkit-scrollbar{display:none}body{margin:0}code,kbd,pre,samp{font-family:var(--font-mono)}:where(:focus-visible){outline:2px solid var(--ring)}:focus-visible{outline-width:2px!important;outline-offset:-2px!important}";function a(t){if(!t||typeof t!=="object"||!t.variables||typeof t.variables!=="object")return;var c=":root{color-scheme:"+(t.appearance==="light"?"light":"dark")+";";for(var k in t.variables){if(/^--[a-z0-9-]+$/.test(k))c+=k+":"+String(t.variables[k]).replace(/[;{}<>]/g,"")+";";}s.textContent=c+"}"+b;}try{var m=/[#&]t3-theme=([^&]*)/.exec(location.hash);if(m){a(JSON.parse(decodeURIComponent(m[1])));history.replaceState(history.state,"",location.pathname+location.search);}}catch(e){}window.addEventListener("message",function(e){var d=e.data,p=d&&d.params;if(d&&d.jsonrpc==="2.0"&&d.method==="ui/notifications/host-context-changed"&&p&&p.styles)a({appearance:p.theme,variables:p.styles.variables});});document.addEventListener("click",function(e){var l=e.isTrusted?e.composedPath().find(function(t){return t&&t.matches&&t.matches("a[href]");}):null,u;if(!l)return;try{u=new URL(l.getAttribute("href"),document.baseURI);}catch(x){return;}if(!/^https?:$/.test(u.protocol)||u.href.split("#")[0]===location.href.split("#")[0])return;if(window.parent!==window){e.preventDefault();window.parent.postMessage({jsonrpc:"2.0",id:"t3-link-"+(++n),method:"ui/open-link",params:{url:u.href}},"*");}else{l.setAttribute("target","_blank");l.setAttribute("rel","noopener");}},true);if(window.parent!==window){var h,o,z=function(){var r=document.documentElement,v=Math.ceil(r.scrollHeight>r.clientHeight?r.scrollHeight:r.getBoundingClientRect().height);if(v===h)return;h=v;window.parent.postMessage({jsonrpc:"2.0",method:"ui/notifications/size-changed",params:{height:v}},"*");};if(window.ResizeObserver){o=new ResizeObserver(z);o.observe(document.documentElement);}document.addEventListener("DOMContentLoaded",function(){if(o&&document.body)o.observe(document.body);z();});window.addEventListener("load",z);}})();</script><style>
+.wrap{font-family:var(--font-sans);color:var(--foreground)}
+.hd{display:flex;align-items:baseline;gap:10px;margin:0 0 4px;flex-wrap:wrap}
+.hd h3{margin:0;font-size:16px}
+.chip{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--border);color:var(--muted-foreground)}
+.lede{font-size:13px;color:var(--muted-foreground);margin:0 0 14px;line-height:1.45}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}
+.grid>div{min-width:0}
+.full{grid-column:1/-1}
+.cap{font-size:12px;color:var(--muted-foreground);margin:7px 2px 0;line-height:1.4}
+.cap b{color:var(--foreground)}
+.mw{border-radius:10px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.35);border:1px solid rgba(0,0,0,.3);background:#ECECEC;color:#1d1d1f;font:13px/1.35 -apple-system,system-ui,sans-serif}
+.tb{height:28px;display:flex;align-items:center;padding:0 10px;position:relative;background:#E3E3E3;border-bottom:1px solid #cfcfcf}
+.tb .d{display:flex;gap:7px}.tb .d i{width:11px;height:11px;border-radius:50%;display:block}
+.tb .d i:nth-child(1){background:#ff5f57}.tb .d i:nth-child(2){background:#febc2e}.tb .d i:nth-child(3){background:#28c840}
+.tb .t{position:absolute;left:0;right:0;text-align:center;font-weight:600;font-size:12.5px;color:#3a3a3a;pointer-events:none}
+.ct{padding:16px}
+.row{display:flex;align-items:center;gap:8px;margin:7px 0;flex-wrap:wrap}
+.lbl{width:100px;text-align:right;color:#3a3a3a;flex:none}
+.pop{background:#fff;border:1px solid #c4c4c4;border-radius:5px;padding:2px 22px 2px 8px;position:relative;box-shadow:0 1px 0 rgba(0,0,0,.05);white-space:nowrap}
+.pop:after{content:"⌃⌄";position:absolute;right:5px;top:50%;transform:translateY(-50%);font-size:8px;letter-spacing:-1px;writing-mode:vertical-lr;color:#555}
+.fld{background:#fff;border:1px solid #c4c4c4;border-radius:4px;padding:2px 8px;flex:1;min-width:0;color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.btn{background:#fff;border:1px solid #c4c4c4;border-radius:6px;padding:3px 12px;white-space:nowrap}
+.pri{background:#0a7aff;border-color:#0a6ae0;color:#fff}
+.sm{font-size:11.5px;color:#6e6e73}
+.ok{color:#1f8a3b}.warn{color:#b35c00}
+.foot{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;align-items:center;flex-wrap:wrap}
+.foot .sp{flex:1}
+.grp{border:1px solid #d2d2d2;border-radius:7px;background:#e6e6e6;padding:8px 12px 10px;margin:10px 0}
+.grp>.gt{font-weight:600;font-size:12px;margin-bottom:2px}
+.issue{display:flex;justify-content:space-between;gap:10px;padding:8px 10px;background:#fff;border:1px solid #d6d6d6;border-radius:6px;margin:6px 0;align-items:center;flex-wrap:wrap}
+.issue .bt{font-weight:600}
+.cb{display:inline-block;width:13px;height:13px;border:1px solid #9c9c9c;border-radius:3px;background:#fff;vertical-align:-2px;flex:none}
+.rad{display:inline-block;width:12px;height:12px;border:1px solid #9c9c9c;border-radius:50%;background:#fff;vertical-align:-2px;margin-right:4px;box-sizing:border-box}
+.rad.on{border:4px solid #0a7aff}
+.step{display:inline-flex;align-items:center;border:1px solid #c4c4c4;border-radius:5px;background:#fff}
+.step span{padding:1px 8px}.step span+span{border-left:1px solid #c4c4c4}
+.alert{display:flex;gap:14px}
+.ico{width:48px;height:48px;border-radius:11px;background:linear-gradient(160deg,#5b6cff,#2c3a9c);color:#fff;display:grid;place-items:center;font-size:24px;flex:none}
+.menu{background:rgba(246,246,246,.98);border:1px solid #c9c9c9;border-radius:7px;box-shadow:0 8px 20px rgba(0,0,0,.25);padding:4px;max-width:230px;font:13px -apple-system,system-ui,sans-serif;color:#1d1d1f}
+.menu div{padding:3px 10px;border-radius:4px;display:flex;justify-content:space-between}
+.menu .hi{background:#0a7aff;color:#fff}
+.menu hr{border:0;border-top:1px solid #d5d5d5;margin:4px 6px}
+.menu .k{color:#8a8a8e}.menu .hi .k{color:#dbe9ff}
+.tbar{display:flex;gap:6px;padding:8px;background:#e9e9e9;border-radius:8px 8px 0 0;border:1px solid #cfcfcf;font:12px -apple-system,system-ui,sans-serif;color:#1d1d1f;width:fit-content}
+.tbar span{padding:4px 8px;border-radius:5px}
+.tbar .on{background:#d4d4d4}
+@media (max-width:560px){.grid{grid-template-columns:1fr}}
+</style></head><body><div class="wrap">
+<div class="hd"><h3>A · Calibre-native, separate small dialogs</h3><span class="chip">style: system / Calibre</span></div>
+<p class="lede">Uses Calibre's own widgets and colors, so it follows light and dark mode automatically. Each moment gets its own small dialog, which closely matches how built-in Calibre features behave. Mockup data is illustrative.</p>
+<div class="grid">
+ <div>
+  <div class="tbar"><span>Convert books</span><span class="on">🎧 To Audiobook ▾</span><span>View</span></div>
+  <div class="menu" style="margin-top:-1px">
+   <div class="hi">Convert selected books <span class="k">⌃⇧A</span></div>
+   <div>Convert with options…</div><hr>
+   <div>Customize plugin…</div><div>Help</div>
+  </div>
+  <p class="cap"><b>Toolbar menu</b> (the same in all three directions). One click converts using the saved defaults.</p>
+ </div>
+ <div>
+  <div class="mw"><div class="tb"><div class="d"><i></i><i></i><i></i></div><div class="t">Convert with options</div></div>
+  <div class="ct">
+   <div class="row"><span class="lbl">Language:</span><span class="pop">Auto (from book)</span></div>
+   <div class="row"><span class="lbl">English voice:</span><span class="pop">af_heart</span><span class="btn">▶</span></div>
+   <div class="row"><span class="lbl">Spanish voice:</span><span class="pop">ef_dora</span><span class="btn">▶</span></div>
+   <div class="row"><span class="lbl">Speed:</span><span class="step"><span>−</span><span>1.0×</span><span>+</span></span></div>
+   <p class="sm" style="margin:10px 0 0">Applies to these 3 books only. Your defaults stay unchanged.</p>
+   <div class="foot"><span class="btn">Cancel</span><span class="btn pri">Convert</span></div>
+  </div></div>
+  <p class="cap"><b>Options for one run.</b> A plain form. ▶ plays a voice sample.</p>
+ </div>
+ <div class="full">
+  <div class="mw"><div class="tb"><div class="d"><i></i><i></i><i></i></div><div class="t">Before converting 4 books</div></div>
+  <div class="ct">
+   <div>2 books need a decision. 1 will be skipped.</div>
+   <div class="issue"><div><span class="bt">The Sampler</span><br><span class="sm">Language not detected</span></div><span class="pop">Choose language…</span></div>
+   <div class="issue"><div><span class="bt">Dune</span><br><span class="sm">Already has an audiobook (M4B)</span></div><span><span class="rad"></span>Replace &nbsp; <span class="rad on"></span>Skip</span></div>
+   <div class="issue"><div><span class="bt">Collected Poems</span><br><span class="sm">No ePub format. It will be skipped.</span></div><span class="sm">—</span></div>
+   <div class="row" style="margin-top:10px"><span class="cb"></span>Apply my choices to all similar books in this batch</div>
+   <div class="foot"><span class="sm sp">Incorruptible and El túnel are ready.</span><span class="btn">Cancel</span><span class="btn pri">Convert 3 books</span></div>
+  </div></div>
+  <p class="cap"><b>Pre-flight check.</b> Appears only when something needs a decision, and lists only the problem books.</p>
+ </div>
+ <div>
+  <div class="mw"><div class="tb"><div class="d"><i></i><i></i><i></i></div><div class="t">Customize To Audiobook</div></div>
+  <div class="ct">
+   <div class="grp"><div class="gt">Engine</div>
+    <div class="row"><span class="fld">~/.local/bin/epub2audiobook</span><span class="btn">Browse…</span></div>
+    <div class="sm ok">✓ Found, version 1.0.0</div>
+    <div class="row">Backend: <span class="pop">ONNX (CPU)</span></div>
+    <div class="sm">MLX (GPU) is not installed. <u>How to install</u></div></div>
+   <div class="grp"><div class="gt">Voice</div>
+    <div class="row">English: <span class="pop">af_heart</span><span class="btn">▶</span></div>
+    <div class="row">Spanish: <span class="pop">ef_dora</span><span class="btn">▶</span></div>
+    <div class="row">Speed: <span class="step"><span>−</span><span>1.0×</span><span>+</span></span></div></div>
+   <div class="grp"><div class="gt">Output</div>
+    <div class="row">If a book already has an M4B: <span class="pop">Ask</span></div>
+    <div class="row"><span class="cb"></span>Also save a copy to</div>
+    <div class="row"><span class="fld" style="color:#999">~/Audiobooks</span><span class="btn">Choose…</span></div></div>
+   <div class="foot"><span class="btn">Cancel</span><span class="btn pri">OK</span></div>
+  </div></div>
+  <p class="cap"><b>Settings.</b> One scrolling form inside Calibre's standard Customize dialog.</p>
+ </div>
+ <div>
+  <div class="mw"><div class="tb"><div class="d"><i></i><i></i><i></i></div><div class="t"></div></div>
+  <div class="ct"><div class="alert"><div class="ico">🎧</div><div>
+   <div style="font-weight:700;margin-bottom:6px">Set up To Audiobook</div>
+   <div class="ok">✓ Engine found (1.0.0)</div>
+   <div class="ok">✓ FFmpeg found</div>
+   <div class="warn">↓ Voice models: 353 MB, one-time download</div>
+   <p class="sm" style="margin:10px 0 0">Defaults: af_heart · 1.0× · ONNX. After this, everything runs offline.</p>
+  </div></div>
+  <div class="foot"><span class="btn">Change settings…</span><span class="sp"></span><span class="btn">Cancel</span><span class="btn pri">Download</span></div>
+  </div></div>
+  <p class="cap"><b>First run (once).</b> A standard macOS alert.</p>
+ </div>
+</div>
+</div></body></html>
