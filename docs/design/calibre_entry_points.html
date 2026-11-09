@@ -1,0 +1,63 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="standalone.css"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style id="t3-theme">:root{color-scheme:dark;--background:#0a0a0a;--foreground:#f5f5f5;--muted:#111111;--muted-foreground:#818181;--card:#111111;--card-foreground:#f5f5f5;--popover:#111111;--popover-foreground:#f5f5f5;--secondary:#111111;--secondary-foreground:#f5f5f5;--border:#191919;--input:#1e1e1e;--ring:#346bf1;--primary:#346bf1;--primary-foreground:#ffffff;--accent:#346bf1;--accent-foreground:#ffffff;--accent-surface:#141414;--accent-surface-foreground:#f5f5f5;--destructive:#fb414a;--destructive-foreground:#ff6467;--destructive-surface:#301214;--warning:#fe9a00;--warning-foreground:#ffb900;--warning-surface:#312108;--success:#10b981;--success-foreground:#34d399;--info:#3b82f6;--info-foreground:#60a5fa;--code-background:#111111;--code-foreground:#f5f5f5;--chart-1:#346bf1;--chart-2:#2dd4bf;--chart-3:#fbbf24;--chart-4:#c084fc;--chart-5:#fb7185;--chart-6:#a3e635;--radius:0.625rem;--font-sans:-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;--font-mono:"SF Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;}@media (prefers-color-scheme: light){:root{color-scheme:light;--background:#fcfcfc;--foreground:#27272a;--muted:#fafafa;--muted-foreground:#71717b;--card:#ffffff;--card-foreground:#27272a;--popover:#ffffff;--popover-foreground:#27272a;--secondary:#fafafa;--secondary-foreground:#27272a;--border:#e4e4e7;--input:#d4d4d8;--ring:#1b4ed8;--primary:#1b4ed8;--primary-foreground:#ffffff;--accent:#1b4ed8;--accent-foreground:#ffffff;--accent-surface:#f4f4f5;--accent-surface-foreground:#18181b;--destructive:#fb2c36;--destructive-foreground:#c10007;--destructive-surface:#fcebec;--warning:#fe9a00;--warning-foreground:#bb4d00;--warning-surface:#fcf4e8;--success:#10b981;--success-foreground:#047857;--info:#3b82f6;--info-foreground:#1d4ed8;--code-background:#ffffff;--code-foreground:#27272a;--chart-1:#1b4ed8;--chart-2:#0d9488;--chart-3:#d97706;--chart-4:#9333ea;--chart-5:#e11d48;--chart-6:#65a30d;--radius:0.625rem;--font-sans:-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;--font-mono:"SF Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;}}html{background:var(--background);color:var(--foreground);font-family:var(--font-sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%;scrollbar-width:none}html::-webkit-scrollbar{display:none}body{margin:0}code,kbd,pre,samp{font-family:var(--font-mono)}:where(:focus-visible){outline:2px solid var(--ring)}:focus-visible{outline-width:2px!important;outline-offset:-2px!important}</style><script>(function(){var s=document.getElementById("t3-theme"),n=0;if(!s)return;var b="html{background:var(--background);color:var(--foreground);font-family:var(--font-sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%;scrollbar-width:none}html::-webkit-scrollbar{display:none}body{margin:0}code,kbd,pre,samp{font-family:var(--font-mono)}:where(:focus-visible){outline:2px solid var(--ring)}:focus-visible{outline-width:2px!important;outline-offset:-2px!important}";function a(t){if(!t||typeof t!=="object"||!t.variables||typeof t.variables!=="object")return;var c=":root{color-scheme:"+(t.appearance==="light"?"light":"dark")+";";for(var k in t.variables){if(/^--[a-z0-9-]+$/.test(k))c+=k+":"+String(t.variables[k]).replace(/[;{}<>]/g,"")+";";}s.textContent=c+"}"+b;}try{var m=/[#&]t3-theme=([^&]*)/.exec(location.hash);if(m){a(JSON.parse(decodeURIComponent(m[1])));history.replaceState(history.state,"",location.pathname+location.search);}}catch(e){}window.addEventListener("message",function(e){var d=e.data,p=d&&d.params;if(d&&d.jsonrpc==="2.0"&&d.method==="ui/notifications/host-context-changed"&&p&&p.styles)a({appearance:p.theme,variables:p.styles.variables});});document.addEventListener("click",function(e){var l=e.isTrusted?e.composedPath().find(function(t){return t&&t.matches&&t.matches("a[href]");}):null,u;if(!l)return;try{u=new URL(l.getAttribute("href"),document.baseURI);}catch(x){return;}if(!/^https?:$/.test(u.protocol)||u.href.split("#")[0]===location.href.split("#")[0])return;if(window.parent!==window){e.preventDefault();window.parent.postMessage({jsonrpc:"2.0",id:"t3-link-"+(++n),method:"ui/open-link",params:{url:u.href}},"*");}else{l.setAttribute("target","_blank");l.setAttribute("rel","noopener");}},true);if(window.parent!==window){var h,o,z=function(){var r=document.documentElement,v=Math.ceil(r.scrollHeight>r.clientHeight?r.scrollHeight:r.getBoundingClientRect().height);if(v===h)return;h=v;window.parent.postMessage({jsonrpc:"2.0",method:"ui/notifications/size-changed",params:{height:v}},"*");};if(window.ResizeObserver){o=new ResizeObserver(z);o.observe(document.documentElement);}document.addEventListener("DOMContentLoaded",function(){if(o&&document.body)o.observe(document.body);z();});window.addEventListener("load",z);}})();</script><style>
+:root{--g:8px}
+.wrap{font-family:var(--font-sans);color:var(--foreground);font-size:13px}
+.win{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;position:relative}
+.bar{display:flex;gap:6px;align-items:center;padding:6px 8px;border:1px solid var(--border);border-radius:6px;margin-bottom:6px;background:var(--secondary)}
+.btn{padding:4px 8px;border-radius:5px;border:1px solid var(--border);background:var(--background);font-size:12px;white-space:nowrap}
+.plug{border:2px solid var(--accent);background:var(--accent-surface);color:var(--accent-surface-foreground);font-weight:600}
+.n{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--accent);color:var(--primary-foreground);font-size:11px;font-weight:700;margin-left:4px;flex:none}
+.body{display:grid;grid-template-columns:150px 1fr 140px;gap:6px;min-height:170px}
+.pane{border:1px solid var(--border);border-radius:6px;padding:8px;position:relative;font-size:12px;color:var(--muted-foreground)}
+.menu{position:absolute;background:var(--popover);color:var(--popover-foreground);border:1px solid var(--border);border-radius:6px;padding:4px 0;font-size:12px;box-shadow:0 4px 14px rgba(0,0,0,.25);z-index:2}
+.menu div{padding:3px 12px;white-space:nowrap}
+.menu .hl{background:var(--accent-surface);color:var(--accent-surface-foreground);font-weight:600}
+.row{padding:3px 0;border-bottom:1px dashed var(--border)}
+.sel{background:var(--accent-surface);color:var(--accent-surface-foreground)}
+.status{display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:12px;color:var(--muted-foreground);border-top:1px solid var(--border);padding-top:6px}
+.label{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted-foreground);margin:2px 0 4px}
+.legend{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px;margin-top:14px}
+.legend div{display:flex;gap:6px;align-items:flex-start;line-height:1.35}
+.off{margin-top:14px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.card{border:1px solid var(--border);border-radius:var(--radius);padding:10px;background:var(--card)}
+.card b{display:block;margin-bottom:4px}
+.muted{color:var(--muted-foreground);font-size:12px}
+.no{border-style:dashed;opacity:.85}
+h4{margin:16px 0 6px;font-size:13px}
+@media (max-width:520px){.legend,.off{grid-template-columns:1fr}.body{grid-template-columns:1fr}}
+</style></head><body><div class="wrap">
+<div class="label">Calibre main window (schematic, not a screenshot): where a plugin can show up</div>
+<div class="win">
+ <div class="bar"><span class="muted">macOS menu bar:</span><span class="btn">File</span><span class="btn">Edit</span><span class="btn plug">Audiobook ▸</span><span class="n">2</span></div>
+ <div class="bar" style="position:relative"><span class="btn">Add books</span><span class="btn">Edit metadata</span><span class="btn">Convert books</span><span class="btn plug">🎧 To Audiobook ▾</span><span class="n">1</span><span class="btn">View</span>
+  <div class="menu" style="left:250px;top:30px"><div class="hl">Convert selected books</div><div>Convert with options…</div><div>Customize plugin…</div><div>Help</div></div></div>
+ <div class="bar"><span class="btn" style="flex:1;color:var(--muted-foreground)">Search…</span><span class="btn plug">🎧</span><span class="n">3</span><span class="muted" style="margin-left:6px">optional 2nd toolbar</span><span class="n">4</span></div>
+ <div class="body">
+  <div class="pane"><div class="label">Tag browser</div>Authors<br>Series<br>Tags<br>Formats<br><span class="muted">right-click → plugin items</span><span class="n">7</span></div>
+  <div class="pane"><div class="label">Book list</div>
+   <div class="row">Incorruptible</div><div class="row sel">El túnel</div><div class="row">Dune</div><div class="row">…</div>
+   <div class="menu" style="left:120px;top:58px"><div>Edit metadata</div><div>Convert books</div><div class="hl">🎧 To Audiobook ▸</div><div>Remove books</div></div>
+   <span class="n" style="position:absolute;right:8px;top:8px">5</span></div>
+  <div class="pane"><div class="label">Book details / cover grid</div>cover<br>formats: EPUB, <b>M4B</b><br><span class="muted">cover-browser right-click</span><span class="n">6</span></div>
+ </div>
+ <div class="status"><span>Library: 1,204 books</span><span><span class="btn plug">Jobs: 1 ⟳</span><span class="n">8</span></span></div>
+</div>
+<div class="legend">
+ <div><span class="n">1</span>Main toolbar button. Click runs the action; a ▾ dropdown holds sub-actions</div>
+ <div><span class="n">2</span>Menu bar entry (top of the screen on macOS)</div>
+ <div><span class="n">3</span>Button on the search bar</div>
+ <div><span class="n">4</span>Optional second toolbar</div>
+ <div><span class="n">5</span>Right-click menu on the book list (also on the split list and device list)</div>
+ <div><span class="n">6</span>Right-click menu on the cover browser</div>
+ <div><span class="n">7</span>Tag browser right-click items, added from code</div>
+ <div><span class="n">8</span>Jobs indicator → Jobs dialog: progress, cancel, log</div>
+</div>
+<h4>Outside the main window</h4>
+<div class="off">
+ <div class="card"><b>⌨ Keyboard shortcut</b><span class="muted">Default set in the plugin code. The user can rebind it under Preferences → Shortcuts.</span></div>
+ <div class="card"><b>⚙ Customize plugin</b><span class="muted">Preferences → Plugins → Customize. Calibre wraps your settings widget in a scrolling dialog with OK and Cancel.</span></div>
+ <div class="card"><b>🧩 Your own dialogs</b><span class="muted">Any Qt window you open from the action: wizards, tables, progress dialogs.</span></div>
+ <div class="card"><b>🖱 Drag and drop</b><span class="muted">Drop books or files onto the plugin's button (accepts_drops).</span></div>
+ <div class="card"><b>🔁 Convert dialog</b><span class="muted">Only for a different plugin type, a conversion output plugin. "M4B" would appear as an output format there, as KFX Output's format does.</span></div>
+ <div class="card no"><b>✕ No plugin UI here</b><span class="muted">E-book viewer, content server (web UI), Book details panel layout, docked side panels (no supported API).</span></div>
+</div>
+</div></body></html>

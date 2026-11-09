@@ -1,6 +1,6 @@
 # epub2audiobook v1.0: Release Definition
 
-**Status:** Final, approved by the owner in Session #3, 2026-10-07. Change it only by explicit owner decision.
+**Status:** Final, approved by the owner in Session #3, 2026-10-07. Amended by owner decision on 2026-10-10 (plugin configuration and prompting; see §5). Change it only by explicit owner decision.
 **Owner decisions behind this definition:**
 - v1.0 is a Calibre plugin plus a separately installed engine.
 - v1.0 supports macOS on Apple Silicon only.
@@ -47,6 +47,7 @@ v1.0 consists of two installable parts:
   - `--progress json` emits machine-readable progress lines;
   - stable exit codes;
   - cancellation on SIGTERM, with cleanup;
+  - flags that pass the title, author and cover from the Calibre record, so the plugin's metadata overrides the ePub's;
   - `epub2audiobook doctor` checks FFmpeg, the models, the backend and disk space.
 - First-run model download with a clear size notice. After that, conversion works fully offline.
 - **Model location:** `~/Library/Application Support/epub2audiobook/models/`, shared by both backends. On first run, models already in `~/.local/share/kokoro_onnx` are moved there instead of downloaded again.
@@ -57,11 +58,19 @@ v1.0 consists of two installable parts:
 
 **Calibre plugin**
 - Convert the selected books (one or many). Each book runs as a Calibre background job, and books are processed one at a time.
-- Settings:
+- Settings (the standard *Customize plugin* dialog):
   - engine path (auto-detected);
   - backend (ONNX or MLX, if installed);
   - voice per language;
-  - speed.
+  - speed;
+  - what to do when the book already has an M4B: ask (default), replace or skip.
+- **Convert with options…:** a menu item that sets voice, speed and language for one batch without changing the saved defaults.
+- Title, author and cover in the M4B come from the Calibre record, not from the ePub.
+- **When the plugin asks the user:**
+  - on the first conversion after install (once): run `doctor`, guide the engine setup if the engine is missing, show the model download size, and summarize the defaults with a way to change them;
+  - before a batch, only when a decision is needed: the language is undetected or unsupported, the book already has an M4B, or the book has no ePub format. All questions go in one dialog;
+  - never during a job. Errors go to the job log;
+  - after the first finished audiobook (once): a notice that offers to change the defaults.
 - Preview a voice on a short sample.
 - The finished M4B is added to the book record as a format, and nothing else on the record changes (no custom columns). Users find converted books with `formats:m4b`. Saving a copy to a folder is optional.
 - The plugin finds the engine at `~/.local/bin/epub2audiobook`, the `uv tool` default. The path can be overridden in settings.
@@ -73,7 +82,7 @@ v1.0 consists of two installable parts:
 - MP3 or per-chapter output.
 - Piper or any second TTS engine.
 - A PyPI package.
-- Custom Calibre columns.
+- Custom Calibre columns, and settings saved per book.
 - Voice blending, a separate dialogue voice, and the Tier B/C engines (Chatterbox, Dia and others).
 - Languages other than English and Spanish.
 - Cloud TTS and voice cloning.
@@ -115,8 +124,11 @@ The current CLAUDE.md roadmap puts the Calibre plugin at v0.4 and MLX at v0.5. T
 | Piper | Dropped in v1.0. Kokoro is the only engine. |
 | Calibre index requirements | No rules on licensing or external dependencies. The plugin needs its own thread in the MobileRead Plugins forum with a single `.zip` attached to the first post and a "Version History" section, and a private message to a moderator with the index entry. The Plugin Updater reads the version, minimum Calibre version and platforms from the plugin code, so we choose the minimum version ourselves. |
 | Book record | Attach the M4B format only. No custom column. |
+| Plugin configuration (2026-10-10) | Saved defaults plus an existing-M4B setting (default: ask); a "Convert with options…" dialog for one batch; metadata from the Calibre record; ask only at the four moments listed in §2. Research: `docs/calibre_plugin_ui_research.md`. |
+| Plugin visual identity (2026-10-10) | The plugin has its own identity, not a brand borrowed from another project. |
 
 ## 6. Remaining open items
 
 - **Minimum Calibre version:** choose it at v0.5 from the Calibre APIs the plugin actually uses.
 - **Spanish default voice:** choose it by listening test in v0.3.
+- **Plugin UI direction:** choose among the explorations in `docs/design/` (A: Calibre-native dialogs; B: one batch sheet with brand accents; C: full custom skin) before v0.5.

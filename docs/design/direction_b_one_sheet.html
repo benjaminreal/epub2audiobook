@@ -1,0 +1,105 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="standalone.css"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style id="t3-theme">:root{color-scheme:dark;--background:#0a0a0a;--foreground:#f5f5f5;--muted:#111111;--muted-foreground:#818181;--card:#111111;--card-foreground:#f5f5f5;--popover:#111111;--popover-foreground:#f5f5f5;--secondary:#111111;--secondary-foreground:#f5f5f5;--border:#191919;--input:#1e1e1e;--ring:#346bf1;--primary:#346bf1;--primary-foreground:#ffffff;--accent:#346bf1;--accent-foreground:#ffffff;--accent-surface:#141414;--accent-surface-foreground:#f5f5f5;--destructive:#fb414a;--destructive-foreground:#ff6467;--destructive-surface:#301214;--warning:#fe9a00;--warning-foreground:#ffb900;--warning-surface:#312108;--success:#10b981;--success-foreground:#34d399;--info:#3b82f6;--info-foreground:#60a5fa;--code-background:#111111;--code-foreground:#f5f5f5;--chart-1:#346bf1;--chart-2:#2dd4bf;--chart-3:#fbbf24;--chart-4:#c084fc;--chart-5:#fb7185;--chart-6:#a3e635;--radius:0.625rem;--font-sans:-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;--font-mono:"SF Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;}@media (prefers-color-scheme: light){:root{color-scheme:light;--background:#fcfcfc;--foreground:#27272a;--muted:#fafafa;--muted-foreground:#71717b;--card:#ffffff;--card-foreground:#27272a;--popover:#ffffff;--popover-foreground:#27272a;--secondary:#fafafa;--secondary-foreground:#27272a;--border:#e4e4e7;--input:#d4d4d8;--ring:#1b4ed8;--primary:#1b4ed8;--primary-foreground:#ffffff;--accent:#1b4ed8;--accent-foreground:#ffffff;--accent-surface:#f4f4f5;--accent-surface-foreground:#18181b;--destructive:#fb2c36;--destructive-foreground:#c10007;--destructive-surface:#fcebec;--warning:#fe9a00;--warning-foreground:#bb4d00;--warning-surface:#fcf4e8;--success:#10b981;--success-foreground:#047857;--info:#3b82f6;--info-foreground:#1d4ed8;--code-background:#ffffff;--code-foreground:#27272a;--chart-1:#1b4ed8;--chart-2:#0d9488;--chart-3:#d97706;--chart-4:#9333ea;--chart-5:#e11d48;--chart-6:#65a30d;--radius:0.625rem;--font-sans:-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;--font-mono:"SF Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;}}html{background:var(--background);color:var(--foreground);font-family:var(--font-sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%;scrollbar-width:none}html::-webkit-scrollbar{display:none}body{margin:0}code,kbd,pre,samp{font-family:var(--font-mono)}:where(:focus-visible){outline:2px solid var(--ring)}:focus-visible{outline-width:2px!important;outline-offset:-2px!important}</style><script>(function(){var s=document.getElementById("t3-theme"),n=0;if(!s)return;var b="html{background:var(--background);color:var(--foreground);font-family:var(--font-sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%;scrollbar-width:none}html::-webkit-scrollbar{display:none}body{margin:0}code,kbd,pre,samp{font-family:var(--font-mono)}:where(:focus-visible){outline:2px solid var(--ring)}:focus-visible{outline-width:2px!important;outline-offset:-2px!important}";function a(t){if(!t||typeof t!=="object"||!t.variables||typeof t.variables!=="object")return;var c=":root{color-scheme:"+(t.appearance==="light"?"light":"dark")+";";for(var k in t.variables){if(/^--[a-z0-9-]+$/.test(k))c+=k+":"+String(t.variables[k]).replace(/[;{}<>]/g,"")+";";}s.textContent=c+"}"+b;}try{var m=/[#&]t3-theme=([^&]*)/.exec(location.hash);if(m){a(JSON.parse(decodeURIComponent(m[1])));history.replaceState(history.state,"",location.pathname+location.search);}}catch(e){}window.addEventListener("message",function(e){var d=e.data,p=d&&d.params;if(d&&d.jsonrpc==="2.0"&&d.method==="ui/notifications/host-context-changed"&&p&&p.styles)a({appearance:p.theme,variables:p.styles.variables});});document.addEventListener("click",function(e){var l=e.isTrusted?e.composedPath().find(function(t){return t&&t.matches&&t.matches("a[href]");}):null,u;if(!l)return;try{u=new URL(l.getAttribute("href"),document.baseURI);}catch(x){return;}if(!/^https?:$/.test(u.protocol)||u.href.split("#")[0]===location.href.split("#")[0])return;if(window.parent!==window){e.preventDefault();window.parent.postMessage({jsonrpc:"2.0",id:"t3-link-"+(++n),method:"ui/open-link",params:{url:u.href}},"*");}else{l.setAttribute("target","_blank");l.setAttribute("rel","noopener");}},true);if(window.parent!==window){var h,o,z=function(){var r=document.documentElement,v=Math.ceil(r.scrollHeight>r.clientHeight?r.scrollHeight:r.getBoundingClientRect().height);if(v===h)return;h=v;window.parent.postMessage({jsonrpc:"2.0",method:"ui/notifications/size-changed",params:{height:v}},"*");};if(window.ResizeObserver){o=new ResizeObserver(z);o.observe(document.documentElement);}document.addEventListener("DOMContentLoaded",function(){if(o&&document.body)o.observe(document.body);z();});window.addEventListener("load",z);}})();</script><style>
+.wrap{font-family:var(--font-sans);color:var(--foreground)}
+.hd{display:flex;align-items:baseline;gap:10px;margin:0 0 4px;flex-wrap:wrap}
+.hd h3{margin:0;font-size:16px}
+.chip{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--border);color:var(--muted-foreground)}
+.lede{font-size:13px;color:var(--muted-foreground);margin:0 0 14px;line-height:1.45}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}
+.grid>div{min-width:0}.full{grid-column:1/-1}
+.cap{font-size:12px;color:var(--muted-foreground);margin:7px 2px 0;line-height:1.4}.cap b{color:var(--foreground)}
+.mw{border-radius:10px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.35);border:1px solid rgba(0,0,0,.3);background:#EEEDEB;color:#1C1D2E;font:13px/1.35 -apple-system,system-ui,sans-serif}
+.tb{height:28px;display:flex;align-items:center;padding:0 10px;position:relative;background:#E4E3E0;border-bottom:1px solid #d0cec9}
+.tb .d{display:flex;gap:7px}.tb .d i{width:11px;height:11px;border-radius:50%;display:block}
+.tb .d i:nth-child(1){background:#ff5f57}.tb .d i:nth-child(2){background:#febc2e}.tb .d i:nth-child(3){background:#28c840}
+.tb .t{position:absolute;left:0;right:0;text-align:center;font-weight:600;font-size:12.5px;color:#3a3a3a}
+.ct{padding:16px}
+.ttl{font:600 19px/1.2 ui-serif,"New York","Iowan Old Style",Georgia,serif;margin:0 0 2px;letter-spacing:-.01em}
+.sub{font-size:12px;color:#514C63;margin:0 0 12px}
+.row{display:flex;align-items:center;gap:8px;margin:7px 0;flex-wrap:wrap}
+.pop{background:#fff;border:1px solid #c4c2bd;border-radius:5px;padding:2px 22px 2px 8px;position:relative;white-space:nowrap}
+.pop:after{content:"⌃⌄";position:absolute;right:5px;top:50%;transform:translateY(-50%);font-size:8px;letter-spacing:-1px;writing-mode:vertical-lr;color:#555}
+.fld{background:#fff;border:1px solid #c4c2bd;border-radius:4px;padding:2px 8px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.btn{background:#fff;border:1px solid #c4c2bd;border-radius:6px;padding:3px 12px;white-space:nowrap}
+.pri{background:#8E4226;border-color:#7a3820;color:#fff}
+.sm{font-size:11.5px;color:#6B6560}
+.foot{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;align-items:center;flex-wrap:wrap}.foot .sp{flex:1}
+table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #d6d3cc;border-radius:6px;overflow:hidden;font-size:12.5px}
+th{font-weight:600;text-align:left;font-size:11px;color:#6B6560;background:#f6f4f0;padding:5px 8px;border-bottom:1px solid #e3dfd7}
+td{padding:6px 8px;border-bottom:1px solid #eeebe5;vertical-align:middle}
+tr:last-child td{border-bottom:0}
+.st{display:inline-block;font-size:11px;padding:1px 8px;border-radius:999px;white-space:nowrap}
+.s-ok{background:#e6f1e9;color:#2f6b40}
+.s-q{background:#f6e7df;color:#8E4226;border:1px solid rgba(142,66,38,.35)}
+.s-x{background:#eeece8;color:#6B6560}
+.seg{display:inline-flex;border:1px solid #c4c2bd;border-radius:5px;overflow:hidden;background:#fff;font-size:12px}
+.seg span{padding:1px 9px}.seg span+span{border-left:1px solid #c4c2bd}.seg .on{background:#8E4226;color:#fff}
+.disc{margin-top:12px;border-top:1px solid #dcd9d2;padding-top:10px}
+.disc .h{font-weight:600;font-size:12.5px;margin-bottom:4px}
+.step{display:inline-flex;border:1px solid #c4c2bd;border-radius:5px;background:#fff}.step span{padding:1px 8px}.step span+span{border-left:1px solid #c4c2bd}
+.tabs{display:flex;justify-content:center;margin:-2px 0 12px}
+.tabs span{padding:3px 14px;border:1px solid #c4c2bd;background:#fff;font-size:12px}
+.tabs span:first-child{border-radius:6px 0 0 6px}.tabs span:last-child{border-radius:0 6px 6px 0}
+.tabs span+span{border-left:0}.tabs .on{background:#8E4226;color:#fff;border-color:#8E4226}
+.vrow{display:grid;grid-template-columns:70px 1fr auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid #e0ddd6}
+.strip{display:flex;gap:6px;margin:0 0 12px;flex-wrap:wrap}
+.strip div{flex:1;min-width:120px;background:#fff;border:1px solid #d6d3cc;border-radius:7px;padding:7px 9px;font-size:12px}
+.strip .n{font:600 11px -apple-system,system-ui;color:#8E4226;letter-spacing:.06em;text-transform:uppercase}
+.strip .cur{border-color:#8E4226;box-shadow:0 0 0 2px rgba(142,66,38,.15)}
+.ok{color:#2f6b40}
+.dk{margin-top:10px;display:flex;gap:8px;align-items:center;font-size:12px;color:var(--muted-foreground)}
+.dk i{width:16px;height:16px;border-radius:4px;display:inline-block;border:1px solid var(--border)}
+@media (max-width:560px){.grid{grid-template-columns:1fr}}
+</style></head><body><div class="wrap">
+<div class="hd"><h3>B · One sheet for every batch</h3><span class="chip">style: native + placeholder brand accents</span></div>
+<p class="lede">The pre-flight check and the one-run options are the same sheet. With a one-click convert, the sheet appears only if a book needs a decision. "Convert with options…" always opens it. The widgets stay native. A placeholder brand adds the copper accent, New York serif titles and status chips.</p>
+<div class="grid">
+ <div class="full">
+  <div class="mw"><div class="tb"><div class="d"><i></i><i></i><i></i></div><div class="t">To Audiobook</div></div>
+  <div class="ct">
+   <div class="ttl">Convert 4 books to audiobooks</div>
+   <p class="sub">Books run one at a time. You can follow progress in Jobs.</p>
+   <table>
+    <tr><th>Book</th><th>Language</th><th>Status</th><th></th></tr>
+    <tr><td><b>Incorruptible</b></td><td>English</td><td><span class="st s-ok">Ready</span></td><td></td></tr>
+    <tr><td><b>El túnel</b></td><td>Spanish</td><td><span class="st s-ok">Ready</span></td><td></td></tr>
+    <tr><td><b>The Sampler</b></td><td><span class="pop">Choose…</span></td><td><span class="st s-q">Needs language</span></td><td></td></tr>
+    <tr><td><b>Dune</b></td><td>English</td><td><span class="st s-q">Has audiobook</span></td><td><span class="seg"><span>Replace</span><span class="on">Skip</span></span></td></tr>
+    <tr><td><b>Collected Poems</b></td><td>—</td><td><span class="st s-x">Skipped: no ePub</span></td><td></td></tr>
+   </table>
+   <div class="disc"><div class="h">▾ Voice and speed for this batch</div>
+    <div class="row">English <span class="pop">af_heart</span><span class="btn">▶ Sample</span> &nbsp; Spanish <span class="pop">ef_dora</span><span class="btn">▶ Sample</span></div>
+    <div class="row">Speed <span class="step"><span>−</span><span>1.0×</span><span>+</span></span> <span class="sm">These choices apply to this batch only.</span></div>
+   </div>
+   <div class="foot"><span class="sm sp">3 of 4 will convert</span><span class="btn">Cancel</span><span class="btn pri">Convert 3 books</span></div>
+  </div></div>
+  <p class="cap"><b>Batch sheet.</b> Every book is visible with its status, so one screen covers both decisions and options. The options section stays collapsed for a one-click convert.</p>
+ </div>
+ <div>
+  <div class="mw"><div class="tb"><div class="d"><i></i><i></i><i></i></div><div class="t">Customize To Audiobook</div></div>
+  <div class="ct">
+   <div class="tabs"><span>Engine</span><span class="on">Voices</span><span>Output</span></div>
+   <div class="vrow"><span>English</span><span class="pop">af_heart</span><span class="btn">▶</span></div>
+   <div class="vrow"><span>Spanish</span><span class="pop">ef_dora</span><span class="btn">▶</span></div>
+   <div class="vrow" style="border:0"><span>Speed</span><span class="step" style="width:fit-content"><span>−</span><span>1.0×</span><span>+</span></span><span></span></div>
+   <p class="sm">Samples are synthesized locally from one short sentence.</p>
+   <div class="foot"><span class="btn">Cancel</span><span class="btn pri">OK</span></div>
+  </div></div>
+  <p class="cap"><b>Settings in three tabs:</b> Engine (path, backend, doctor status), Voices, and Output (existing M4B, copy to folder).</p>
+ </div>
+ <div>
+  <div class="mw"><div class="tb"><div class="d"><i></i><i></i><i></i></div><div class="t">To Audiobook</div></div>
+  <div class="ct">
+   <div class="ttl">Before your first audiobook</div>
+   <p class="sub">A one-time setup. After this, everything runs offline.</p>
+   <div class="strip">
+    <div><span class="n">1 · Engine</span><br><span class="ok">✓ Found 1.0.0</span></div>
+    <div class="cur"><span class="n">2 · Voices</span><br>353 MB download</div>
+    <div><span class="n">3 · Defaults</span><br>af_heart · 1.0×</div>
+   </div>
+   <div class="foot"><span class="btn">Change defaults…</span><span class="sp"></span><span class="btn">Cancel</span><span class="btn pri">Download</span></div>
+  </div></div>
+  <p class="cap"><b>First run</b> as a 3-step strip, followed by the batch sheet.</p>
+ </div>
+</div>
+<div class="dk">Dark mode: widgets follow Calibre, and the accent switches to the night copper <i style="background:#C87E5A"></i> #C87E5A.</div>
+</div></body></html>

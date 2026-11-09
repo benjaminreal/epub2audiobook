@@ -1,0 +1,19 @@
+/* Fallback theme so the exploration pages open in any browser.
+   In T3 Code these variables were injected by the host. */
+:root {
+  --background: #141414;
+  --foreground: #ececec;
+  --muted-foreground: #9a9a9a;
+  --border: #343434;
+  --card: #1b1b1b;
+  --secondary: #222;
+  --popover: #232323;
+  --popover-foreground: #ececec;
+  --accent: #4a7dff;
+  --accent-surface: #1d2a4a;
+  --accent-surface-foreground: #cfe0ff;
+  --primary-foreground: #fff;
+  --radius: 10px;
+  --font-sans: -apple-system, system-ui, sans-serif;
+}
+body { background: var(--background); margin: 0 auto; padding: 24px; max-width: 780px; }
