@@ -14,7 +14,8 @@ from pydub import AudioSegment
 
 from epub2audiobook.config import DEFAULT_BITRATE, DEFAULT_CHANNELS, DEFAULT_SAMPLE_RATE
 from epub2audiobook.parser import BookMetadata
-from epub2audiobook.utils import DependencyError, check_ffmpeg
+from epub2audiobook.utils import DependencyError as DependencyError
+from epub2audiobook.utils import check_ffmpeg
 
 logger = logging.getLogger(__name__)
 
@@ -244,7 +245,9 @@ def embed_metadata(
     except Exception as e:
         raise AssemblyError(f"Failed to save M4B metadata: {e}") from e
 
-    logger.info("Metadata embedded: title='%s', author='%s'", metadata.title, metadata.author)
+    logger.info(
+        "Metadata embedded: title='%s', author='%s'", metadata.title, metadata.author
+    )
 
 
 def _escape_ffmetadata(value: str) -> str:

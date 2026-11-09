@@ -16,13 +16,13 @@ from epub2audiobook.config import DEFAULT_ENGINE, DEFAULT_OUTPUT_DIR, VERSION
 from epub2audiobook.utils import (
     DependencyError,
     DiskSpaceError,
+    ProgressTracker,
     check_disk_space,
     check_ffmpeg,
     estimate_audio_size,
     format_duration,
     sanitize_filename,
     setup_logging,
-    ProgressTracker,
 )
 
 logger = logging.getLogger(__name__)
@@ -62,15 +62,15 @@ def main() -> int:
         epub_path = open_file_dialog()
         if epub_path is None:
             print(
-                f"Usage: python -m epub2audiobook <epub_path> [OPTIONS]\n"
-                f"\n"
-                f"Options:\n"
-                f"  --output, -o  Output path for the M4B file\n"
+                "Usage: python -m epub2audiobook <epub_path> [OPTIONS]\n"
+                "\n"
+                "Options:\n"
+                "  --output, -o  Output path for the M4B file\n"
                 "  --engine      TTS engine: kokoro (default) or piper\n"
                 "  --backend     Kokoro backend: onnx (default) or mlx\n"
                 "  --voice       Voice name (default depends on engine)\n"
-                f"  --verbose, -v Enable debug logging\n"
-                f"  --version     Print version and exit",
+                "  --verbose, -v Enable debug logging\n"
+                "  --version     Print version and exit",
                 file=sys.stderr,
             )
             return 1
@@ -91,7 +91,7 @@ def main() -> int:
     # Import pipeline modules (deferred to avoid import errors if deps missing)
     try:
         from epub2audiobook.assembler import AssemblyError, assemble_audiobook
-        from epub2audiobook.parser import BookMetadata, ParsingError, parse_epub
+        from epub2audiobook.parser import ParsingError, parse_epub
         from epub2audiobook.preprocessor import preprocess_text
         from epub2audiobook.tts_engine import TTSError, create_tts_engine
     except ImportError as e:
@@ -220,7 +220,7 @@ def main() -> int:
     except Exception:
         duration_str = "unknown"
 
-    print(f"\nAudiobook created successfully!")
+    print("\nAudiobook created successfully!")
     print(f"  Output:    {output_path}")
     print(f"  Size:      {file_size_mb:.1f} MB")
     print(f"  Duration:  {duration_str}")
@@ -228,7 +228,10 @@ def main() -> int:
     print(f"  Time:      {format_duration(elapsed)}")
 
     if skipped_chapters:
-        print(f"\nWarning: {len(skipped_chapters)} chapter(s) skipped due to TTS errors:")
+        print(
+            f"\nWarning: {len(skipped_chapters)} chapter(s) "
+            "skipped due to TTS errors:"
+        )
         for idx, title in skipped_chapters:
             print(f"  - Chapter {idx}: \"{title}\" (TTS synthesis failed: TTSError)")
 
@@ -259,7 +262,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--output", "-o",
         type=Path,
         default=None,
-        help=f"Output path for the M4B file (default: {DEFAULT_OUTPUT_DIR}/{{title}}.m4b)",
+        help=(
+            f"Output path for the M4B file (default: "
+            f"{DEFAULT_OUTPUT_DIR}/{{title}}.m4b)"
+        ),
     )
     parser.add_argument(
         "--engine",

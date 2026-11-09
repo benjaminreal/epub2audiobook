@@ -71,9 +71,15 @@ def strip_html_tags(text: str) -> str:
         Text with HTML tags removed.
     """
     # Convert block-level elements to newlines
-    text = re.sub(r"<\s*(?:p|br|div|h[1-6]|li|tr|blockquote)[^>]*>", "\n", text, flags=re.IGNORECASE)
+    text = re.sub(
+        r"<\s*(?:p|br|div|h[1-6]|li|tr|blockquote)[^>]*>", "\n", text,
+        flags=re.IGNORECASE
+    )
     # Remove closing block tags
-    text = re.sub(r"<\s*/\s*(?:p|div|h[1-6]|li|tr|blockquote)\s*>", "\n", text, flags=re.IGNORECASE)
+    text = re.sub(
+        r"<\s*/\s*(?:p|div|h[1-6]|li|tr|blockquote)\s*>", "\n", text,
+        flags=re.IGNORECASE
+    )
     # Remove all remaining tags
     text = re.sub(r"<[^>]+>", "", text)
     return text
