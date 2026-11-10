@@ -324,7 +324,10 @@ class ListeningKitTests(unittest.TestCase):
                     "-f", "lavfi", "-i",
                     f"anoisesrc=color=pink:sample_rate=24000:duration=1.5:seed={i},"
                     f"volume={gain}dB",
-                    "-filter_complex", "[0][1]concat=n=2:v=0:a=1", str(wav),
+                    "-filter_complex", "[0][1]concat=n=2:v=0:a=1",
+                    "-metadata", f"title=Condition {cond}",
+                    "-metadata", f"artist={cond}",
+                    str(wav),
                 )  # fmt: skip
                 clips[cond] = str(wav)
             passages.append({"id": f"P0{i}", "clips": clips})
@@ -372,6 +375,27 @@ class ListeningKitTests(unittest.TestCase):
         # with headroom to spare, the cap applies
         self.assertEqual(listening_kit.common_target(clips[:1]), -20.0)
 
+    def test_kit_audio_carries_no_metadata(self):
+        for wav in (self.kit / "audio").glob("*.wav"):
+            tags = json.loads(
+                subprocess.run(
+                    ["ffprobe", "-v", "error", "-show_entries", "format_tags",
+                     "-of", "json", str(wav)],
+                    capture_output=True, text=True, check=True,
+                ).stdout
+            ).get("format", {}).get("tags", {})  # fmt: skip
+            self.assertEqual(tags, {}, wav.name)
+
+    def test_incomplete_round_leaves_targets_undetermined(self):
+        ratings = self._ratings({"human": 90, "kokoro": 90, "piper": 20})
+        first = next(p["panel"] for p in self.key["panels"] if not p["repeat_of"])
+        ratings["panels"] = [p for p in ratings["panels"] if p["panel"] == first]
+        s = listening_kit.score(ratings, self.key)["summary"]
+        self.assertFalse(s["complete"])
+        self.assertEqual(len(s["missing"]), 4)
+        self.assertIsNone(s["provisional_targets"]["gap_met"])
+        self.assertIsNone(s["provisional_targets"]["continue_met"])
+
     def test_existing_output_is_refused(self):
         with self.assertRaises(hard_checks.CheckError):
             listening_kit.build(self.manifest, self.kit, self.tmp / "other_key.json")
@@ -408,6 +432,59 @@ class ListeningKitTests(unittest.TestCase):
         ratings["kit_id"] = "other"
         with self.assertRaises(ValueError):
             listening_kit.score(ratings, self.key)
+
+
+class ReviewRegressionTests(unittest.TestCase):
+    """Regressions from the PR #6 review."""
+
+    def test_unrelated_reference_error_does_not_hide_an_omission(self):
+        text = "We crossed the old wooden bridge safely."
+        queue = review_queue.build_queue(
+            text,
+            _segments("We crossed safely."),
+            _segments("We crossed the cold wooden bridge safely."),
+        )
+        (flag,) = queue["flags"]
+        self.assertEqual(flag["kind"], "skipped")
+        self.assertFalse(flag["also_in_reference"])
+
+    def test_negative_number_keeps_its_sign(self):
+        queue = review_queue.build_queue(
+            "It was -5 degrees.", _segments("It was five degrees.")
+        )
+        (flag,) = queue["flags"]
+        self.assertEqual(flag["expected"], "minus")
+        self.assertEqual(words("a-5 and 1990-1995")[:2], ["a", "five"])
+
+    def test_accented_words_are_compared(self):
+        queue = review_queue.build_queue("He said sí.", _segments("He said sé."))
+        (flag,) = queue["flags"]
+        self.assertEqual((flag["expected"], flag["heard"]), ("sí", "sé"))
+
+    def test_uncovered_tail_fails_chapter_tiling(self):
+        info = {
+            "format": {"duration": "43200"},
+            "chapters": [{"start_time": "0", "end_time": "42800"}],
+        }
+        checks = {c.name: c for c in hard_checks.check_chapters(info)}
+        self.assertEqual(checks["chapter_tiling"].value, ["end"])
+
+    def test_repeats_follow_the_fourth_and_eighth_passage(self):
+        import random
+
+        panels = listening_kit.plan_panels(
+            [f"P{i}" for i in range(9)], random.Random(1)
+        )
+        self.assertEqual(len(panels), 11)
+        self.assertEqual([p["panel"] for p in panels if p["repeat_of"]], [5, 10])
+        for p in panels:
+            if p["repeat_of"]:
+                self.assertLess(p["repeat_of"], p["panel"])
+
+    def test_page_unlocks_on_ended_without_replacing_players(self):
+        page = listening_kit.PAGE.read_text()
+        self.assertIn('addEventListener("ended"', page)
+        self.assertNotIn("timeupdate", page)
 
 
 if __name__ == "__main__":

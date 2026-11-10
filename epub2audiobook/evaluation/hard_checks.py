@@ -36,6 +36,9 @@ MIN_CHAPTER_S = 1.0
 # A long silence this close to a chapter boundary is a chapter break.
 CHAPTER_EDGE_S = 1.0
 GAP_TOLERANCE_S = 0.05
+# The last chapter may end this far from the file's end: AAC frames and
+# container padding add well under a second, whatever the book's length.
+END_TOLERANCE_S = 1.0
 
 
 class CheckError(Exception):
@@ -226,9 +229,7 @@ def check_chapters(info: dict, expect: int | None = None) -> list[Check]:
         if abs(float(c["start_time"]) - previous_end) > GAP_TOLERANCE_S:
             gaps.append(i + 1)
         previous_end = float(c["end_time"])
-    if chapters and abs(previous_end - duration) > max(
-        GAP_TOLERANCE_S, 0.01 * duration
-    ):
+    if chapters and abs(previous_end - duration) > END_TOLERANCE_S:
         gaps.append("end")
     checks.append(
         Check(

@@ -54,10 +54,11 @@ def year_to_words(n: int) -> list[str]:
 
 
 def _spell(match: re.Match) -> str:
-    dollar, digits, percent = (
+    sign, dollar, digits, percent = (
         match.group(1),
-        match.group(2).replace(",", ""),
-        match.group(3),
+        match.group(2),
+        match.group(3).replace(",", ""),
+        match.group(4),
     )
     n = int(digits)
     if (
@@ -69,6 +70,8 @@ def _spell(match: re.Match) -> str:
         spoken = year_to_words(n)
     else:
         spoken = number_to_words(n)
+    if sign:
+        spoken.insert(0, "minus")
     if dollar:
         spoken.append("dollars")
     if percent:
@@ -93,10 +96,12 @@ def tokenize(text: str) -> list[Token]:
     how a flag is labelled.
     """
     text = text.replace("’", "'").replace("‘", "'")
-    text = re.sub(r"(\$)?(\d[\d,]*)(%)?", _spell, text)
+    # A sign counts only at the start or after a space or bracket, not in "a-5"
+    text = re.sub(r"((?<!\w)[-\u2212](?=\$?\d))?(\$)?(\d[\d,]*)(%)?", _spell, text)
     tokens: list[Token] = []
     sentence_start = True
-    for raw in re.findall(r"[A-Za-z0-9']+(?:-[A-Za-z0-9']+)*|[.!?]", text):
+    letters = r"[^\W_]+(?:'[^\W_]+)*"  # Unicode letters and digits, not "_"
+    for raw in re.findall(rf"'?{letters}'?(?:-{letters})*|[.!?]", text):
         if raw in ".!?":
             sentence_start = True
             continue

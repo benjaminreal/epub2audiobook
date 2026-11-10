@@ -108,18 +108,32 @@ def _classify(
     return "misread"
 
 
-def _spans_with_errors(expected: list[str], heard: list[str]) -> list[tuple[int, int]]:
-    """Expected-text spans where a transcript differs (insertions are zero-width)."""
-    return [(i1, i2) for _, i1, i2, _, _ in _opcodes(expected, heard)]
+def _errors(expected: list[str], heard: list[str]) -> list[tuple[str, int, int, str]]:
+    """(tag, expected start, expected end, heard text) for each difference."""
+    return [
+        (tag, i1, i2, " ".join(heard[j1:j2]))
+        for tag, i1, i2, j1, j2 in _opcodes(expected, heard)
+    ]
 
 
-def _overlaps(span: tuple[int, int], others: list[tuple[int, int]]) -> bool:
-    a, b = span
-    for c, d in others:
-        if a == b or c == d:  # insertion: compare positions with one word of slack
-            if c - 1 <= a <= d + 1 or a - 1 <= c <= b + 1:
+def _shared(
+    flag: tuple[str, int, int, str], reference: list[tuple[str, int, int, str]]
+) -> bool:
+    """True when the reference transcript makes the same error.
+
+    The same error means the same kind of difference over the same expected
+    words, or the same heard words over overlapping expected words. An
+    unrelated reference error nearby does not count: it would hide a real
+    omission behind one misheard word.
+    """
+    tag, a, b, heard = flag
+    for r_tag, c, d, r_heard in reference:
+        if tag == "insert" and r_tag == "insert":
+            if abs(a - c) <= 1 and heard == r_heard:
                 return True
-        elif a < d and c < b:
+        elif tag == r_tag and (a, b) == (c, d):
+            return True
+        elif heard and heard == r_heard and a < d and c < b:
             return True
     return False
 
@@ -135,9 +149,9 @@ def build_queue(
     exp_words = [t.word for t in expected]
     heard = heard_words(segments, offset)
     heard_list = [h.word for h in heard]
-    reference_spans = None
+    reference_errors = None
     if reference_segments is not None:
-        reference_spans = _spans_with_errors(
+        reference_errors = _errors(
             exp_words, [h.word for h in heard_words(reference_segments)]
         )
 
@@ -166,8 +180,10 @@ def build_queue(
             context=f"{before} [{' '.join(exp_words[i1:i2])}] {after}".strip(),
             expected_span=(i1, i2),
         )
-        if reference_spans is not None:
-            flag.also_in_reference = _overlaps((i1, i2), reference_spans)
+        if reference_errors is not None:
+            flag.also_in_reference = _shared(
+                (tag, i1, i2, " ".join(heard_part)), reference_errors
+            )
         flags.append(flag)
 
     matched = sum(

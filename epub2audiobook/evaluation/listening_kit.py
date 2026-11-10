@@ -43,7 +43,8 @@ TARGET_LUFS = -20.0
 MATCH_TOLERANCE_LU = 0.5
 MAX_PEAK_DBTP = -1.0
 PAD_S = 0.3
-REPEAT_AFTER = (4, 8)  # a hidden repeat panel follows panels 4 and 8
+# A hidden repeat panel follows the 4th and 8th passages (counted without repeats).
+REPEAT_AFTER = (4, 8)
 # Provisional targets (owner decision, 2026-11-08): within 10 points of the
 # blind professional reference, and "keep listening" on 9 of 10 passages.
 TARGET_GAP = 10.0
@@ -60,10 +61,24 @@ DIMENSIONS = (
 PAGE = Path(__file__).with_name("listening_kit.html")
 
 
+# Drop every source tag and the encoder tag so no file reveals its condition.
+STRIP_METADATA = (
+    "-map_metadata",
+    "-1",
+    "-fflags",
+    "+bitexact",
+    "-flags:a",
+    "+bitexact",
+)
+
+
 def _ffmpeg(*args: str) -> None:
+    """Run FFmpeg; the last argument is the output, written without metadata."""
     try:
         subprocess.run(
-            ["ffmpeg", "-v", "error", "-y", *args], check=True, capture_output=True
+            ["ffmpeg", "-v", "error", "-y", *args[:-1], *STRIP_METADATA, args[-1]],
+            check=True,
+            capture_output=True,
         )
     except FileNotFoundError as exc:
         raise CheckError(
@@ -272,8 +287,19 @@ def score(ratings: dict, key: dict) -> dict:
     gaps = [e["gap"] for e in per_passage.values() if "gap" in e]
     cont = [e["continue"].get(engine) for e in per_passage.values()]
     cont = [c for c in cont if c is not None]
+    expected = {p["passage"] for p in key["panels"] if p["repeat_of"] is None}
+    missing = sorted(
+        pid
+        for pid in expected
+        if pid not in per_passage
+        or "gap" not in per_passage[pid]
+        or per_passage[pid]["continue"].get(engine) is None
+    )
+    complete = not missing
     summary = {
         "passages_rated": len(per_passage),
+        "complete": complete,
+        "missing": missing,
         "mean_score": {
             c: mean(e.get(c) for e in per_passage.values()) for c in key["conditions"]
         },
@@ -283,9 +309,12 @@ def score(ratings: dict, key: dict) -> dict:
         "repeat_drift": [abs(d["repeat"] - d["first"]) for d in drift],
         "provisional_targets": {
             "gap_within_points": TARGET_GAP,
-            "gap_met": (mean(gaps) is not None and mean(gaps) >= -TARGET_GAP),
+            # None: the round is incomplete, so the targets are undetermined
+            "gap_met": mean(gaps) >= -TARGET_GAP if complete else None,
             "continue_rate": TARGET_CONTINUE,
-            "continue_met": bool(cont) and sum(cont) / len(cont) >= TARGET_CONTINUE,
+            "continue_met": sum(cont) / len(cont) >= TARGET_CONTINUE
+            if complete
+            else None,
         },
         "note": (
             "One listener, one round: this describes this listener's ratings of "

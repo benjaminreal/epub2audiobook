@@ -76,10 +76,13 @@ function clipCard(panel, clip) {
   const r = (state.ratings[panel.panel] ||= {})[clip.label] ||= { score: null, continue: null, reason: "", dims: {}, played: false };
   const controls = el("fieldset", { class: r.played ? "" : "locked" });
   const audio = el("audio", { controls: "", preload: "auto", src: clip.file });
-  audio.addEventListener("timeupdate", () => {
-    if (!r.played && audio.duration && audio.currentTime >= audio.duration * 0.95) {
-      r.played = true; save(); render();
-    }
+  const note = r.played ? "" : el("p", { class: "note" }, "Play to the end to unlock rating.");
+  audio.addEventListener("ended", () => {
+    if (r.played) return;
+    r.played = true; save();
+    controls.classList.remove("locked");
+    if (note) note.remove();
+    updateNext();
   });
   const num = el("input", { type: "number", min: "0", max: "100", value: r.score ?? "" });
   const range = el("input", { type: "range", min: "0", max: "100", value: r.score ?? 50 });
@@ -106,8 +109,7 @@ function clipCard(panel, clip) {
     el("div", { class: "row" }, radio(true, "Continue"), radio(false, "Stop")),
     el("div", { class: "row" }, reason),
     el("details", {}, el("summary", {}, "Optional: dimensions, 1 (poor) to 5 (excellent)"), dims));
-  return el("div", { class: "card clip" }, el("h2", {}, "Clip " + clip.label), audio,
-    r.played ? "" : el("p", { class: "note" }, "Play to the end to unlock rating."), controls);
+  return el("div", { class: "card clip" }, el("h2", {}, "Clip " + clip.label), audio, note, controls);
 }
 
 function complete(panel) {
