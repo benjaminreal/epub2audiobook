@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from epub2audiobook.evaluation import hard_checks, review_queue
+from epub2audiobook.evaluation import hard_checks, listening_kit, review_queue
 from epub2audiobook.evaluation.spoken_form import number_to_words, tokenize, words
 
 HAS_FFMPEG = shutil.which("ffmpeg") is not None and shutil.which("ffprobe") is not None
@@ -305,6 +305,109 @@ class HardCheckTests(unittest.TestCase):
         bad.write_bytes(b"not audio")
         with self.assertRaises(hard_checks.CheckError):
             hard_checks.run_checks(bad)
+
+
+@unittest.skipUnless(HAS_FFMPEG, "ffmpeg not installed")
+class ListeningKitTests(unittest.TestCase):
+    CONDITIONS = {"human": -14, "kokoro": -26, "piper": -20}
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmp = Path(self._tmp.name)
+        passages = []
+        for i in range(5):
+            clips = {}
+            for cond, gain in self.CONDITIONS.items():
+                wav = self.tmp / f"P{i}_{cond}.wav"
+                _ffmpeg(
+                    "-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono:d=0.4",
+                    "-f", "lavfi", "-i",
+                    f"anoisesrc=color=pink:sample_rate=24000:duration=1.5:seed={i},"
+                    f"volume={gain}dB",
+                    "-filter_complex", "[0][1]concat=n=2:v=0:a=1", str(wav),
+                )  # fmt: skip
+                clips[cond] = str(wav)
+            passages.append({"id": f"P0{i}", "clips": clips})
+        self.manifest = self.tmp / "manifest.json"
+        self.manifest.write_text(
+            json.dumps(
+                {
+                    "reference": "human",
+                    "engine": "kokoro",
+                    "codec_roundtrip": ["kokoro", "piper"],
+                    "passages": passages,
+                }
+            )
+        )
+        self.kit = self.tmp / "kit"
+        self.keyfile = self.tmp / "key.json"
+        self.key = listening_kit.build(self.manifest, self.kit, self.keyfile)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_page_hides_conditions_and_files_are_matched(self):
+        page = (self.kit / "index.html").read_text()
+        for cond in self.CONDITIONS:
+            self.assertNotIn(cond, page)
+        self.assertNotIn("__KIT__", page)
+        # 5 passages plus one hidden repeat after panel 4
+        self.assertEqual(len(self.key["panels"]), 6)
+        repeat = [p for p in self.key["panels"] if p["repeat_of"]]
+        self.assertEqual(len(repeat), 1)
+        self.assertEqual(len(list((self.kit / "audio").glob("*.wav"))), 18)
+        for clip in self.key["clips"].values():
+            lufs, peak = hard_checks.loudness(self.kit / clip["file"])
+            self.assertAlmostEqual(lufs, self.key["target_lufs"], delta=0.5)
+            self.assertLessEqual(peak, listening_kit.MAX_PEAK_DBTP + 0.2)
+        self.assertLessEqual(self.key["target_lufs"], listening_kit.TARGET_LUFS)
+
+    def test_common_target_leaves_headroom_for_the_peakiest_clip(self):
+        clips = [
+            {"lufs": -20.0, "true_peak": -8.0},
+            {"lufs": -20.0, "true_peak": -0.5},
+        ]
+        # the second clip peaks 19.5 dB above its loudness: -1 - 19.5 = -20.5
+        self.assertEqual(listening_kit.common_target(clips), -20.5)
+        # with headroom to spare, the cap applies
+        self.assertEqual(listening_kit.common_target(clips[:1]), -20.0)
+
+    def test_existing_output_is_refused(self):
+        with self.assertRaises(hard_checks.CheckError):
+            listening_kit.build(self.manifest, self.kit, self.tmp / "other_key.json")
+
+    def _ratings(self, scores: dict[str, int]) -> dict:
+        panels = []
+        for p in self.key["panels"]:
+            clips = {}
+            for label, cond in p["clips"].items():
+                score = scores[cond] + (5 if p["repeat_of"] else 0)
+                clips[label] = {
+                    "score": score,
+                    "continue": cond != "piper",
+                    "reason": "",
+                    "dims": {"pronunciation": 4},
+                }
+            panels.append({"panel": p["panel"], "clips": clips})
+        return {"kit_id": self.key["kit_id"], "panels": panels}
+
+    def test_score_reports_gap_continuation_and_drift(self):
+        result = listening_kit.score(
+            self._ratings({"human": 90, "kokoro": 82, "piper": 20}), self.key
+        )
+        s = result["summary"]
+        self.assertEqual(s["passages_rated"], 5)
+        self.assertEqual(s["mean_gap"], -8.0)
+        self.assertEqual(s["engine_continue"], "5/5")
+        self.assertTrue(s["provisional_targets"]["gap_met"])
+        self.assertEqual(s["repeat_drift"], [5, 5, 5])
+        self.assertEqual(result["dimensions"]["kokoro"]["pronunciation"], 4.0)
+
+    def test_score_refuses_ratings_from_another_kit(self):
+        ratings = self._ratings({"human": 90, "kokoro": 60, "piper": 20})
+        ratings["kit_id"] = "other"
+        with self.assertRaises(ValueError):
+            listening_kit.score(ratings, self.key)
 
 
 if __name__ == "__main__":

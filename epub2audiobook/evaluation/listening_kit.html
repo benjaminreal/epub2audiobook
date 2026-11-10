@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blind listening</title>
+<style>
+  :root { --bg: #f7f6f2; --card: #ffffff; --ink: #1d1d1b; --muted: #6b6a66;
+          --line: #dcdad3; --accent: #2f5d8a; --warn: #9a4a1c; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #171716; --card: #222220; --ink: #ecebe6; --muted: #a3a29c;
+            --line: #3a3936; --accent: #8db6df; --warn: #e3a57d; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 16px/1.5 -apple-system, system-ui, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  .muted { color: var(--muted); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+          padding: 16px; margin: 16px 0; }
+  .clip h2 { font-size: 1.1rem; margin: 0 0 8px; }
+  audio { width: 100%; }
+  .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+  input[type=range] { flex: 1; min-width: 160px; }
+  input[type=number] { width: 4.5em; font: inherit; }
+  input[type=text] { width: 100%; font: inherit; padding: 6px; }
+  fieldset { border: 0; padding: 0; margin: 0; }
+  button { font: inherit; padding: 8px 16px; border-radius: 8px; border: 1px solid var(--accent);
+           background: var(--accent); color: var(--bg); cursor: pointer; }
+  button.secondary { background: transparent; color: var(--accent); }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  .locked { opacity: .45; pointer-events: none; }
+  .note { color: var(--warn); font-size: .9rem; }
+  details { margin-top: 10px; }
+  table.dims td { padding: 2px 8px 2px 0; }
+  ol li { margin-bottom: 4px; }
+</style>
+</head>
+<body>
+<main id="app"></main>
+<script>
+const KIT = __KIT__;
+const STORE = "listening-kit-" + KIT.kit_id;
+let state = { panel: 0, ratings: {}, startedAt: null };
+try { const saved = localStorage.getItem(STORE); if (saved) state = JSON.parse(saved); } catch (e) {}
+function save() { try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) {} }
+const app = document.getElementById("app");
+
+function el(tag, attrs = {}, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k.startsWith("on")) n.addEventListener(k.slice(2), v); else if (v !== null) n.setAttribute(k, v);
+  }
+  for (const k of kids) n.append(k);
+  return n;
+}
+
+function intro() {
+  app.replaceChildren(
+    el("h1", {}, KIT.title),
+    el("p", { class: "muted" }, `${KIT.panels.length} panels · about 25–30 minutes`),
+    el("div", { class: "card" },
+      el("ol", {},
+        el("li", {}, "Use a quiet room, the same headphones and the same volume throughout."),
+        el("li", {}, "Each panel has the same passage read several ways. Play every clip once, to the end, before rating."),
+        el("li", {}, "Rate each clip 0–100: “Would I choose this for a whole book?” Then choose Continue or Stop: would you keep listening?"),
+        el("li", {}, "Rate on first impression; replay only after your first rating."),
+        el("li", {}, "Give a one-line reason for any Stop or low score. Dimensions are optional."),
+        el("li", {}, "At the end, download the ratings file. Do not open the key until then."))),
+    el("button", { onclick: () => { state.startedAt ||= new Date().toISOString(); save(); render(); } },
+      state.startedAt ? "Continue" : "Start"));
+}
+
+function clipCard(panel, clip) {
+  const r = (state.ratings[panel.panel] ||= {})[clip.label] ||= { score: null, continue: null, reason: "", dims: {}, played: false };
+  const controls = el("fieldset", { class: r.played ? "" : "locked" });
+  const audio = el("audio", { controls: "", preload: "auto", src: clip.file });
+  audio.addEventListener("timeupdate", () => {
+    if (!r.played && audio.duration && audio.currentTime >= audio.duration * 0.95) {
+      r.played = true; save(); render();
+    }
+  });
+  const num = el("input", { type: "number", min: "0", max: "100", value: r.score ?? "" });
+  const range = el("input", { type: "range", min: "0", max: "100", value: r.score ?? 50 });
+  const set = v => { r.score = v === "" ? null : Math.max(0, Math.min(100, Number(v))); num.value = r.score ?? ""; range.value = r.score ?? 50; save(); updateNext(); };
+  num.addEventListener("input", () => set(num.value));
+  range.addEventListener("input", () => set(range.value));
+  const radio = (val, text) => {
+    const input = el("input", { type: "radio", name: `c-${panel.panel}-${clip.label}`, value: String(val) });
+    if (r.continue === val) input.checked = true;
+    input.addEventListener("change", () => { r.continue = val; save(); updateNext(); });
+    return el("label", {}, input, " " + text);
+  };
+  const reason = el("input", { type: "text", placeholder: "One-line reason (needed for Stop or a score under 50)", value: r.reason });
+  reason.addEventListener("input", () => { r.reason = reason.value; save(); updateNext(); });
+  const dims = el("table", { class: "dims" });
+  for (const d of KIT.dimensions) {
+    const sel = el("select", {}, el("option", { value: "" }, "–"), ...[1, 2, 3, 4, 5].map(v => el("option", { value: String(v) }, String(v))));
+    sel.value = r.dims[d] ?? "";
+    sel.addEventListener("change", () => { if (sel.value) r.dims[d] = Number(sel.value); else delete r.dims[d]; save(); });
+    dims.append(el("tr", {}, el("td", {}, d), el("td", {}, sel)));
+  }
+  controls.append(
+    el("div", { class: "row" }, el("span", {}, "Score"), range, num),
+    el("div", { class: "row" }, radio(true, "Continue"), radio(false, "Stop")),
+    el("div", { class: "row" }, reason),
+    el("details", {}, el("summary", {}, "Optional: dimensions, 1 (poor) to 5 (excellent)"), dims));
+  return el("div", { class: "card clip" }, el("h2", {}, "Clip " + clip.label), audio,
+    r.played ? "" : el("p", { class: "note" }, "Play to the end to unlock rating."), controls);
+}
+
+function complete(panel) {
+  const rs = state.ratings[panel.panel] || {};
+  return panel.clips.every(c => {
+    const r = rs[c.label];
+    if (!r || !r.played || r.score === null || r.continue === null) return false;
+    return (r.continue && r.score >= 50) || r.reason.trim().length > 0;
+  });
+}
+
+let nextButton = null;
+function updateNext() { if (nextButton) nextButton.disabled = !complete(KIT.panels[state.panel]); }
+
+function render() {
+  if (!state.startedAt) return intro();
+  if (state.panel >= KIT.panels.length) return finish();
+  const panel = KIT.panels[state.panel];
+  nextButton = el("button", { onclick: () => { state.panel++; save(); render(); scrollTo(0, 0); } },
+    state.panel + 1 === KIT.panels.length ? "Finish" : "Next panel");
+  app.replaceChildren(
+    el("h1", {}, `Panel ${state.panel + 1} of ${KIT.panels.length}`),
+    el("p", { class: "muted" }, "Same passage in every clip. “Would I choose this for a whole book?”"),
+    ...panel.clips.map(c => clipCard(panel, c)),
+    el("div", { class: "row" },
+      el("button", { class: "secondary", onclick: () => { state.panel = Math.max(0, state.panel - 1); save(); render(); }, ...(state.panel ? {} : { disabled: "" }) }, "Back"),
+      nextButton));
+  updateNext();
+}
+
+function finish() {
+  const out = {
+    kit_id: KIT.kit_id, started_at: state.startedAt, completed_at: new Date().toISOString(),
+    panels: KIT.panels.map(p => ({ panel: p.panel, clips: Object.fromEntries(p.clips.map(c => {
+      const r = state.ratings[p.panel][c.label];
+      return [c.label, { score: r.score, continue: r.continue, reason: r.reason, dims: r.dims }];
+    })) })),
+  };
+  const blob = new Blob([JSON.stringify(out, null, 1)], { type: "application/json" });
+  const name = `ratings_${KIT.kit_id}_${out.completed_at.slice(0, 16).replace(/[:T]/g, "")}.json`;
+  app.replaceChildren(
+    el("h1", {}, "Done"),
+    el("p", {}, "Download the ratings, then run the score command with the key."),
+    el("div", { class: "row" },
+      el("a", { href: URL.createObjectURL(blob), download: name }, el("button", {}, "Download ratings")),
+      el("button", { class: "secondary", onclick: () => { state.panel = KIT.panels.length - 1; save(); render(); } }, "Back to last panel")));
+}
+
+render();
+</script>
+</body>
+</html>
