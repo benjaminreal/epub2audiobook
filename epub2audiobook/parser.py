@@ -54,12 +54,18 @@ class Chapter:
         title: Chapter title (from TOC, heading, or generated).
         text: Raw extracted text (before preprocessing).
         source_href: The ePub spine item href this chapter came from.
+        kind: "text" for reading matter, "toc" for a table of contents, or
+            "notes" for a document that holds only footnotes or endnotes.
+        generated_title: True when the title was made up ("Chapter 12")
+            because the book gives the document none.
     """
 
     index: int
     title: str
     text: str
     source_href: str
+    kind: str = "text"
+    generated_title: bool = False
 
 
 def parse_epub(epub_path: Path) -> tuple[BookMetadata, list[Chapter]]:
@@ -97,6 +103,8 @@ def parse_epub(epub_path: Path) -> tuple[BookMetadata, list[Chapter]]:
     if _is_flat_epub(chapters):
         logger.info("Flat ePub detected. Splitting on headings.")
         chapters = _split_flat_chapters(book, chapters)
+
+    chapters = _arrange_chapters(chapters)
 
     if not chapters:
         raise ParsingError("No chapters could be extracted from the ePub.")
@@ -240,7 +248,8 @@ def _extract_chapters_from_spine(
 
         try:
             html_content = item.get_content().decode("utf-8", errors="replace")
-            text = _html_to_text(html_content)
+            kind = _classify_document(html_content)
+            text = _html_to_text(html_content, keep_notes=kind == "notes")
         except Exception as e:
             logger.warning("Failed to parse spine item %s: %s", item_id, e)
             continue
@@ -250,7 +259,8 @@ def _extract_chapters_from_spine(
         title = toc_map.get(href)
         if not title:
             title = _extract_heading(html_content)
-        if not title:
+        generated_title = not title
+        if generated_title:
             title = f"Chapter {chapter_index + 1}"
 
         chapters.append(Chapter(
@@ -258,10 +268,143 @@ def _extract_chapters_from_spine(
             title=title,
             text=text,
             source_href=href or item_id,
+            kind=kind,
+            generated_title=generated_title,
         ))
         chapter_index += 1
 
     return chapters
+
+
+_NOTE_TYPES = {"footnote", "footnotes", "endnote", "endnotes", "rearnote", "rearnotes"}
+_TOC_MIN_LINKS = 3
+_TOC_MIN_LINK_SHARE = 0.8
+_NOTE_MARKER = re.compile(r"^[*\u2020\u2021\u00a7]+\s*")
+_NOTE_MARKER_MAX_CHARS = 6  # "*", "12", "[iii]": longer opening links are not markers
+
+
+def _link_target_file(link) -> str:
+    """Return the file part of a link's href, or '' for in-page and web links."""
+    href = link.get("href", "")
+    if re.match(r"^[a-z][a-z0-9+.-]*:", href, re.IGNORECASE):
+        return ""
+    return href.split("#")[0]
+
+
+def _classify_document(html_content: str) -> str:
+    """Classify a spine document as "toc", "notes" or "text".
+
+    A table of contents is a page whose text is almost all links to other
+    files, or almost all inside an epub:type="toc" element. A notes page is
+    one whose paragraphs each start with a short link back into the book
+    (the footnote marker), or whose text sits entirely inside footnote or
+    endnote elements. Everything else is reading matter.
+    """
+    soup = BeautifulSoup(html_content, "html.parser")
+    for element in soup(["head", "script", "style"]):
+        element.decompose()
+    body = soup.body or soup
+
+    def epub_types(element) -> set[str]:
+        return set((element.get("epub:type") or "").split())
+
+    total = len(body.get_text("", strip=True))
+    toc_elements = [
+        el for el in [body, *body.find_all(True)] if "toc" in epub_types(el)
+    ]
+    if toc_elements:
+        outermost = [
+            el for el in toc_elements
+            if not any(parent in toc_elements for parent in el.parents)
+        ]  # fmt: skip
+        toc_text = sum(len(el.get_text("", strip=True)) for el in outermost)
+        if toc_text >= _TOC_MIN_LINK_SHARE * total:
+            return "toc"
+
+    links = [a for a in body.find_all("a", href=True) if _link_target_file(a)]
+    link_text = sum(len(a.get_text("", strip=True)) for a in links)
+    if len(links) >= _TOC_MIN_LINKS and link_text >= _TOC_MIN_LINK_SHARE * total:
+        return "toc"
+
+    paragraphs = [p for p in body.find_all(["p", "li"]) if p.get_text(strip=True)]
+    if paragraphs and all(_starts_with_backlink(p) for p in paragraphs):
+        return "notes"
+
+    note_elements = [el for el in body.find_all(True) if epub_types(el) & _NOTE_TYPES]
+    for element in note_elements:
+        element.extract()
+    for heading in body.find_all(["h1", "h2", "h3", "h4", "h5", "h6"]):
+        heading.extract()
+    if note_elements and not body.get_text(strip=True):
+        return "notes"
+    return "text"
+
+
+def _starts_with_backlink(paragraph) -> bool:
+    """Whether a paragraph opens with a link to a place in another file."""
+    link = paragraph.find("a", href=True)
+    if link is None or "#" not in link["href"] or not _link_target_file(link):
+        return False
+    marker = link.get_text(strip=True)
+    if not marker or len(marker) > _NOTE_MARKER_MAX_CHARS:
+        return False
+    return paragraph.get_text(strip=True).startswith(marker)
+
+
+def _arrange_chapters(chapters: list[Chapter]) -> list[Chapter]:
+    """Drop sections that are not read aloud and join runs of note pages.
+
+    Sections with no text (cover and title pages, image-only pages) and
+    tables of contents are dropped. Consecutive untitled note pages (ePubs
+    often put each footnote on its own page) are joined into one chapter in
+    the same place, called "Notes", or joined onto the titled note page just
+    before them. A note page with its own title always starts a new chapter,
+    so its chapter marker is kept.
+    """
+    kept: list[Chapter] = []
+    run: list[Chapter] = []
+
+    def close_run() -> None:
+        if not run:
+            return
+        paragraphs = [
+            _NOTE_MARKER.sub("", p)
+            for chapter in run
+            for p in chapter.text.strip().split("\n\n")
+        ]
+        first = run[0]
+        if first.generated_title:
+            title, paragraphs = "Notes", ["Notes", *paragraphs]
+        else:
+            title = first.title
+        logger.info("Joined %d note pages into chapter '%s'", len(run), title)
+        kept.append(Chapter(
+            index=0,
+            title=title,
+            text="\n\n".join(p for p in paragraphs if p.strip()),
+            source_href=first.source_href,
+            kind="notes",
+        ))
+        run.clear()
+
+    for chapter in chapters:
+        if not chapter.text.strip():
+            logger.info("Skipping empty section '%s'", chapter.title)
+        elif chapter.kind == "toc":
+            close_run()
+            logger.info("Skipping table of contents '%s'", chapter.title)
+        elif chapter.kind == "notes":
+            if not chapter.generated_title:
+                close_run()
+            run.append(chapter)
+        else:
+            close_run()
+            kept.append(chapter)
+    close_run()
+
+    for i, chapter in enumerate(kept):
+        chapter.index = i
+    return kept
 
 
 _BLOCK_TAGS = [
@@ -273,7 +416,7 @@ _PARAGRAPH_BREAK = " "
 _LINE_BREAK = " "
 
 
-def _html_to_text(html_content: str) -> str:
+def _html_to_text(html_content: str, keep_notes: bool = False) -> str:
     """Extract visible text from HTML, one paragraph per block element.
 
     Paragraph breaks come from the HTML structure, not from line wrapping
@@ -281,16 +424,24 @@ def _html_to_text(html_content: str) -> str:
     and paragraphs are joined with a blank line. A single <br> is a
     layout line break and becomes a space; two or more in a row separate
     paragraphs.
+
+    Footnote containers (<aside> and footnote/endnote classes) are removed
+    from reading text; keep_notes keeps them, for pages that hold only notes.
     """
     soup = BeautifulSoup(html_content, "html.parser")
 
     # Remove non-visible elements
-    for element in soup(["head", "script", "style", "aside"]):
+    for element in soup(["head", "script", "style"]):
         element.decompose()
 
     # Remove footnote containers
-    for element in soup.find_all(class_=re.compile(r"footnote|endnote", re.IGNORECASE)):
-        element.decompose()
+    if not keep_notes:
+        for element in soup("aside"):
+            element.decompose()
+        for element in soup.find_all(
+            class_=re.compile(r"footnote|endnote", re.IGNORECASE)
+        ):
+            element.decompose()
 
     for element in soup.find_all(_BLOCK_TAGS):
         element.insert_before(_PARAGRAPH_BREAK)
@@ -356,13 +507,16 @@ def _split_flat_chapters(
         for heading in headings:
             heading.insert_before(_SPLIT_MARKER)
 
-        preamble, *sections = _html_to_text(str(soup)).split(_SPLIT_MARKER)
+        full_text = _html_to_text(str(soup), keep_notes=chapter.kind == "notes")
+        preamble, *sections = full_text.split(_SPLIT_MARKER)
         if preamble.strip():
             new_chapters.append(Chapter(
                 index=0,
                 title=chapter.title,
                 text=preamble,
                 source_href=chapter.source_href,
+                kind=chapter.kind,
+                generated_title=chapter.generated_title,
             ))
         for title, text in zip(titles, sections):
             new_chapters.append(Chapter(
@@ -370,6 +524,8 @@ def _split_flat_chapters(
                 title=title or f"Chapter {len(new_chapters) + 1}",
                 text=text,
                 source_href=chapter.source_href,
+                kind=chapter.kind,
+                generated_title=not title,
             ))
 
     for i, chapter in enumerate(new_chapters):
