@@ -11,7 +11,6 @@ import logging
 import re
 import subprocess
 import tempfile
-from functools import cache
 from pathlib import Path
 
 from pydub import AudioSegment
@@ -21,6 +20,7 @@ from epub2audiobook.config import (
     DEFAULT_CHANNELS,
     DEFAULT_SAMPLE_RATE,
     FALLBACK_AAC_ENCODER,
+    LOUDNESS_LARGE_GAIN_DB,
     LOUDNESS_MIN_INPUT_LUFS,
     LOUDNESS_OVERSAMPLE,
     LOUDNESS_PEAK_CEILING_DBFS,
@@ -175,7 +175,8 @@ def measure_loudness(concat_list_path: Path) -> dict[str, float]:
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         raise AssemblyError(
-            f"FFmpeg loudness measurement failed (exit code {result.returncode})"
+            f"FFmpeg loudness measurement failed (exit code {result.returncode}):\n"
+            f"{result.stderr[-2000:]}"
         )
     return parse_loudnorm_json(result.stderr)
 
@@ -184,14 +185,17 @@ def parse_loudnorm_json(stderr: str) -> dict[str, float]:
     """Extract loudnorm's JSON summary from FFmpeg's stderr.
 
     Raises:
-        AssemblyError: If no summary is found.
+        AssemblyError: If no summary is found or it cannot be read.
     """
     match = re.search(r"\{[^{}]*\"input_i\"[^{}]*\}", stderr)
     if not match:
         raise AssemblyError("FFmpeg printed no loudness measurement")
-    data = json.loads(match.group(0))
     keys = ("input_i", "input_tp", "input_lra", "input_thresh", "target_offset")
-    return {k: float(data[k]) for k in keys}
+    try:
+        data = json.loads(match.group(0))
+        return {k: float(data[k]) for k in keys}
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
+        raise AssemblyError(f"Unreadable loudness measurement: {e!r}") from e
 
 
 def normalization_filter(measured: dict[str, float]) -> str | None:
@@ -210,6 +214,12 @@ def normalization_filter(measured: dict[str, float]) -> str | None:
         logger.warning("Audio is silent or nearly silent; loudness not normalized")
         return None
     gain = LOUDNESS_TARGET_LUFS - measured["input_i"]
+    if gain > LOUDNESS_LARGE_GAIN_DB:
+        logger.warning(
+            "Audio is unusually quiet (%.1f LUFS); a %+.1f dB boost will also "
+            "raise background noise",
+            measured["input_i"], gain,
+        )  # fmt: skip
     logger.info(
         "Measured %.1f LUFS, true peak %.1f dBTP; applying %+.1f dB gain to %.1f "
         "LUFS with peaks limited to %.1f dBFS",
@@ -225,7 +235,6 @@ def normalization_filter(measured: dict[str, float]) -> str | None:
     )
 
 
-@cache
 def aac_encoder() -> str:
     """Return the AAC encoder to use: Apple's when FFmpeg has it, else FFmpeg's.
 
@@ -235,6 +244,13 @@ def aac_encoder() -> str:
     result = subprocess.run(
         ["ffmpeg", "-hide_banner", "-encoders"], capture_output=True, text=True
     )
+    if result.returncode != 0:
+        logger.warning(
+            "Could not list FFmpeg encoders (exit code %d); using %s, which may "
+            "exceed the peak limit",
+            result.returncode, FALLBACK_AAC_ENCODER,
+        )  # fmt: skip
+        return FALLBACK_AAC_ENCODER
     if re.search(rf"^\s*A\S*\s+{PREFERRED_AAC_ENCODER}\s", result.stdout, re.M):
         return PREFERRED_AAC_ENCODER
     logger.warning(

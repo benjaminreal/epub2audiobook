@@ -44,6 +44,8 @@ LOUDNESS_PEAK_CEILING_DBFS: float = -6.0
 LOUDNESS_OVERSAMPLE: int = 4
 # Below this measured loudness (silence or near-silence) normalization is skipped.
 LOUDNESS_MIN_INPUT_LUFS: float = -70.0
+# Gains above this get a warning: they lift background noise along with speech.
+LOUDNESS_LARGE_GAIN_DB: float = 12.0
 
 # Output
 DEFAULT_OUTPUT_DIR: Path = Path.home() / "Downloads"
