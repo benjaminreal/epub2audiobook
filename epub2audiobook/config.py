@@ -27,6 +27,25 @@ PARAGRAPH_PAUSE_MS: int = 600
 DEFAULT_BITRATE: str = "64k"
 DEFAULT_SAMPLE_RATE: int = 44_100
 DEFAULT_CHANNELS: int = 1  # mono
+# Apple's AAC encoder (FFmpeg's AudioToolbox wrapper, macOS only). FFmpeg's own
+# "aac" encoder added near-full-scale bursts to a full-length book encode that
+# the same audio did not have before encoding; it is only a fallback.
+PREFERRED_AAC_ENCODER: str = "aac_at"
+FALLBACK_AAC_ENCODER: str = "aac"
+
+# Loudness normalization (release definition V1-05: -18 +/- 1 LUFS, true peak
+# at or below -3 dBTP, measured on the M4B with ffmpeg ebur128). One fixed gain
+# brings the book to the target; a lookahead limiter, run at 4x the output
+# sample rate so it also catches peaks between samples, holds the rare peaks
+# under the ceiling. AAC encoding raises peaks by about 2 dB, so the ceiling
+# sits below the release limit.
+LOUDNESS_TARGET_LUFS: float = -18.0
+LOUDNESS_PEAK_CEILING_DBFS: float = -6.0
+LOUDNESS_OVERSAMPLE: int = 4
+# Below this measured loudness (silence or near-silence) normalization is skipped.
+LOUDNESS_MIN_INPUT_LUFS: float = -70.0
+# Gains above this get a warning: they lift background noise along with speech.
+LOUDNESS_LARGE_GAIN_DB: float = 12.0
 
 # Output
 DEFAULT_OUTPUT_DIR: Path = Path.home() / "Downloads"
