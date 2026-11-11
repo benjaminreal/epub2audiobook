@@ -1,18 +1,32 @@
 """Audio assembly: combine chapter WAVs into M4B with chapter markers.
 
-Two-phase process:
-1. FFmpeg: concatenate WAVs, encode to AAC, embed chapter markers.
-2. Mutagen: embed metadata tags and cover art.
+Process:
+1. FFmpeg: measure the loudness of the concatenated chapters.
+2. FFmpeg: concatenate WAVs, normalize loudness, encode to AAC, embed chapters.
+3. Mutagen: embed metadata tags and cover art.
 """
 
+import json
 import logging
+import re
 import subprocess
 import tempfile
+from functools import cache
 from pathlib import Path
 
 from pydub import AudioSegment
 
-from epub2audiobook.config import DEFAULT_BITRATE, DEFAULT_CHANNELS, DEFAULT_SAMPLE_RATE
+from epub2audiobook.config import (
+    DEFAULT_BITRATE,
+    DEFAULT_CHANNELS,
+    DEFAULT_SAMPLE_RATE,
+    FALLBACK_AAC_ENCODER,
+    LOUDNESS_MIN_INPUT_LUFS,
+    LOUDNESS_OVERSAMPLE,
+    LOUDNESS_PEAK_CEILING_DBFS,
+    LOUDNESS_TARGET_LUFS,
+    PREFERRED_AAC_ENCODER,
+)
 from epub2audiobook.parser import BookMetadata
 from epub2audiobook.utils import DependencyError as DependencyError
 from epub2audiobook.utils import check_ffmpeg
@@ -77,10 +91,11 @@ def assemble_audiobook(
         ]
         concat_list_path.write_text("\n".join(concat_lines), encoding="utf-8")
 
-        # Phase 1: FFmpeg encode
-        encode_m4b(concat_list_path, metadata_path, output_path)
+        # Phase 1: loudness measurement; phase 2: FFmpeg encode
+        audio_filter = normalization_filter(measure_loudness(concat_list_path))
+        encode_m4b(concat_list_path, metadata_path, output_path, audio_filter)
 
-    # Phase 2: Mutagen metadata
+    # Phase 3: Mutagen metadata
     embed_metadata(output_path, metadata, narrator)
 
     logger.info("M4B assembly complete: %s", output_path)
@@ -138,17 +153,117 @@ def create_ffmetadata(
     return "\n".join(lines)
 
 
+def measure_loudness(concat_list_path: Path) -> dict[str, float]:
+    """Measure the concatenated chapters with FFmpeg loudnorm (first pass).
+
+    Args:
+        concat_list_path: Path to the FFmpeg concat list file.
+
+    Returns:
+        loudnorm's input_i, input_tp, input_lra, input_thresh and
+        target_offset as floats (-inf for silence).
+
+    Raises:
+        AssemblyError: If FFmpeg fails or prints no measurement.
+    """
+    cmd = [
+        "ffmpeg", "-hide_banner", "-nostats",
+        "-f", "concat", "-safe", "0", "-i", str(concat_list_path),
+        "-af", "loudnorm=print_format=json",
+        "-f", "null", "-",
+    ]  # fmt: skip
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise AssemblyError(
+            f"FFmpeg loudness measurement failed (exit code {result.returncode})"
+        )
+    return parse_loudnorm_json(result.stderr)
+
+
+def parse_loudnorm_json(stderr: str) -> dict[str, float]:
+    """Extract loudnorm's JSON summary from FFmpeg's stderr.
+
+    Raises:
+        AssemblyError: If no summary is found.
+    """
+    match = re.search(r"\{[^{}]*\"input_i\"[^{}]*\}", stderr)
+    if not match:
+        raise AssemblyError("FFmpeg printed no loudness measurement")
+    data = json.loads(match.group(0))
+    keys = ("input_i", "input_tp", "input_lra", "input_thresh", "target_offset")
+    return {k: float(data[k]) for k in keys}
+
+
+def normalization_filter(measured: dict[str, float]) -> str | None:
+    """Build the filter that brings the book to the target loudness.
+
+    One fixed gain for the whole book, so quiet and loud passages keep their
+    balance, then a lookahead limiter at LOUDNESS_OVERSAMPLE times the output
+    rate that only acts on the rare peaks above the ceiling. Returns None for
+    silence, which has no loudness to normalize.
+
+    FFmpeg's loudnorm is not used for this step: when the gain would push peaks
+    over its limit it switches to dynamic mode, which put sub-millisecond
+    bursts near full scale into a full-book render.
+    """
+    if not measured["input_i"] > LOUDNESS_MIN_INPUT_LUFS:  # also catches -inf/NaN
+        logger.warning("Audio is silent or nearly silent; loudness not normalized")
+        return None
+    gain = LOUDNESS_TARGET_LUFS - measured["input_i"]
+    logger.info(
+        "Measured %.1f LUFS, true peak %.1f dBTP; applying %+.1f dB gain to %.1f "
+        "LUFS with peaks limited to %.1f dBFS",
+        measured["input_i"], measured["input_tp"], gain, LOUDNESS_TARGET_LUFS,
+        LOUDNESS_PEAK_CEILING_DBFS,
+    )  # fmt: skip
+    ceiling = 10 ** (LOUDNESS_PEAK_CEILING_DBFS / 20)
+    return (
+        f"volume={gain:.2f}dB,"
+        f"aresample={LOUDNESS_OVERSAMPLE * DEFAULT_SAMPLE_RATE},"
+        f"alimiter=limit={ceiling:.4f}:attack=5:release=50:level=false:latency=true,"
+        f"aresample={DEFAULT_SAMPLE_RATE}"
+    )
+
+
+@cache
+def aac_encoder() -> str:
+    """Return the AAC encoder to use: Apple's when FFmpeg has it, else FFmpeg's.
+
+    Logs a warning on fallback, because FFmpeg's own encoder can push peaks
+    over the release limit on long books.
+    """
+    result = subprocess.run(
+        ["ffmpeg", "-hide_banner", "-encoders"], capture_output=True, text=True
+    )
+    if re.search(rf"^\s*A\S*\s+{PREFERRED_AAC_ENCODER}\s", result.stdout, re.M):
+        return PREFERRED_AAC_ENCODER
+    logger.warning(
+        "FFmpeg has no %s encoder; using %s, which may exceed the peak limit",
+        PREFERRED_AAC_ENCODER, FALLBACK_AAC_ENCODER,
+    )  # fmt: skip
+    return FALLBACK_AAC_ENCODER
+
+
+def _encoder_args(encoder: str) -> list[str]:
+    args = ["-c:a", encoder]
+    if encoder == PREFERRED_AAC_ENCODER:
+        args += ["-aac_at_mode", "cbr"]
+    return [*args, "-b:a", DEFAULT_BITRATE]
+
+
 def encode_m4b(
     concat_list_path: Path,
     metadata_path: Path,
     output_path: Path,
+    audio_filter: str | None = None,
 ) -> Path:
-    """Run FFmpeg to concatenate WAVs and encode to M4B.
+    """Run FFmpeg to concatenate WAVs and encode to M4B (AAC, see aac_encoder).
 
     Args:
         concat_list_path: Path to the FFmpeg concat list file.
         metadata_path: Path to the FFMETADATA file.
         output_path: Path for the output M4B file.
+        audio_filter: Optional FFmpeg audio filter, such as normalization.
 
     Returns:
         The output_path.
@@ -167,8 +282,8 @@ def encode_m4b(
         "-i", str(concat_list_path),
         "-i", str(metadata_path),
         "-map_metadata", "1",
-        "-c:a", "aac",
-        "-b:a", DEFAULT_BITRATE,
+        *(["-af", audio_filter] if audio_filter else []),
+        *_encoder_args(aac_encoder()),
         "-ac", str(DEFAULT_CHANNELS),
         "-ar", str(DEFAULT_SAMPLE_RATE),
         "-movflags", "+faststart",
