@@ -1,5 +1,6 @@
 """Tests for dropping non-spoken sections and joining note pages."""
 
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -65,6 +66,21 @@ class ClassifyDocumentTests(unittest.TestCase):
     def test_endnotes_section_is_notes(self):
         self.assertEqual(parser._classify_document(ENDNOTES), "notes")
 
+    def test_small_inline_toc_does_not_hide_a_chapter(self):
+        page = _page(
+            '<nav epub:type="toc"><ol><li><a href="a.xhtml">One</a></li></ol></nav>'
+            + "<p>A long paragraph of the chapter itself, read aloud.</p>" * 5
+        )
+        self.assertEqual(parser._classify_document(page), "text")
+
+    def test_annotated_contents_is_not_notes(self):
+        entries = "".join(
+            f'<p><a href="ch{i}.xhtml#c">Chapter {i}</a> in which the hero '
+            "travels far and learns a great deal about the world.</p>"
+            for i in range(1, 6)
+        )
+        self.assertNotEqual(parser._classify_document(_page(entries)), "notes")
+
     def test_chapter_with_inline_footnote_is_text(self):
         page = _page(
             "<p>Main text of the chapter.</p>"
@@ -74,7 +90,16 @@ class ClassifyDocumentTests(unittest.TestCase):
 
 
 def _chapter(title: str, text: str, kind: str = "text") -> Chapter:
-    return Chapter(index=0, title=title, text=text, source_href=title, kind=kind)
+    # titles of the form "Chapter N" stand for ones the parser made up
+    generated = bool(re.fullmatch(r"Chapter \d+", title))
+    return Chapter(
+        index=0,
+        title=title,
+        text=text,
+        source_href=title,
+        kind=kind,
+        generated_title=generated,
+    )
 
 
 class ArrangeChaptersTests(unittest.TestCase):
@@ -114,6 +139,22 @@ class ArrangeChaptersTests(unittest.TestCase):
         )
         self.assertEqual(arranged[0].text, "Photograph Captions\n\n1. Me")
 
+    def test_titled_note_pages_keep_their_markers(self):
+        chapters = [
+            _chapter("Notes to Chapter 1", "Notes to Chapter 1\n\n1. A", "notes"),
+            _chapter("Notes to Chapter 2", "Notes to Chapter 2\n\n1. B", "notes"),
+            _chapter("Chapter 3", "* C", "notes"),
+        ]
+        arranged = parser._arrange_chapters(chapters)
+        self.assertEqual(
+            [c.title for c in arranged], ["Notes to Chapter 1", "Notes to Chapter 2"]
+        )
+        self.assertEqual(arranged[1].text, "Notes to Chapter 2\n\n1. B\n\nC")
+
+    def test_book_title_of_the_form_chapter_n_is_kept(self):
+        chapter = Chapter(0, "Chapter 12", "* A note.", "x", kind="notes")
+        self.assertEqual(parser._arrange_chapters([chapter])[0].title, "Chapter 12")
+
     def test_text_between_note_pages_splits_runs(self):
         chapters = [
             _chapter("Chapter 1", "* First.", "notes"),
@@ -122,6 +163,13 @@ class ArrangeChaptersTests(unittest.TestCase):
         ]
         titles = [c.title for c in parser._arrange_chapters(chapters)]
         self.assertEqual(titles, ["Notes", "Middle", "Notes"])
+
+
+class NoteTextTests(unittest.TestCase):
+    def test_note_page_text_is_kept(self):
+        page = _page('<aside epub:type="footnote"><p>An aside note.</p></aside>')
+        self.assertEqual(parser._html_to_text(page), "")
+        self.assertEqual(parser._html_to_text(page, keep_notes=True), "An aside note.")
 
 
 class ParseEpubTests(unittest.TestCase):
